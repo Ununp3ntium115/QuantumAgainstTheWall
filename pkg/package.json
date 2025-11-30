@@ -1,31 +1,40 @@
 {
-  "name": "quantum-wall",
-  "type": "module",
-  "collaborators": [
-    "QuantumAgainstTheWall Contributors"
-  ],
-  "description": "Quantum entropy computation at scale via tensor networks (MPS)",
+  "name": "quantumwall",
   "version": "0.1.0",
-  "license": "UNLICENSED",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Ununp3ntium115/QuantumAgainstTheWall"
-  },
+  "type": "module",
+  "description": "Quantum-resistant cryptography: Argon2id + Balloon + Time-lock password hardening with WASM",
+  "main": "quantum_wall.js",
+  "types": "quantum_wall.d.ts",
   "files": [
     "quantum_wall_bg.wasm",
+    "quantum_wall_bg.wasm.d.ts",
     "quantum_wall.js",
     "quantum_wall.d.ts"
   ],
-  "main": "quantum_wall.js",
-  "types": "quantum_wall.d.ts",
-  "sideEffects": [
-    "./snippets/*"
-  ],
   "keywords": [
     "quantum",
+    "cryptography",
+    "argon2",
+    "balloon-hashing",
+    "time-lock",
+    "password-hashing",
+    "wasm",
+    "webassembly",
     "entropy",
-    "tensor-network",
-    "mps",
-    "wasm"
+    "quantum-resistant",
+    "post-quantum"
+  ],
+  "author": "QuantumAgainstTheWall Contributors",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ununp3ntium115/QuantumAgainstTheWall.git"
+  },
+  "homepage": "https://github.com/Ununp3ntium115/QuantumAgainstTheWall#readme",
+  "bugs": {
+    "url": "https://github.com/Ununp3ntium115/QuantumAgainstTheWall/issues"
+  },
+  "sideEffects": [
+    "./snippets/*"
   ]
 }
