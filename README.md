@@ -1,8 +1,8 @@
 # QuantumWall
 
-**Quantum entropy computation at scale using tensor networks.**
+**Quantum entropy computation and cryptography at scale using tensor networks.**
 
-Compute von Neumann entropy for systems with millions of qubits using Matrix Product States (MPS) - something impossible with traditional density matrix approaches.
+Compute von Neumann entropy for systems with millions of qubits using Matrix Product States (MPS) - something impossible with traditional density matrix approaches. Features quantum-seeded cryptographic primitives for secure data encryption.
 
 ---
 
@@ -152,6 +152,132 @@ new QuantumState(n_qubits, bond_dim)
 
 ---
 
+## Cryptography API
+
+QuantumWall includes production-grade cryptographic primitives seeded by quantum entropy.
+
+### CryptoRng (JavaScript)
+
+A cryptographically secure random number generator seeded by quantum entropy.
+
+```javascript
+import { QuantumState, CryptoRng } from 'quantumwall';
+
+// Create RNG seeded from quantum state
+const state = new QuantumState(100, 32);
+state.hadamardAll(); // Create entanglement for entropy
+const rng = CryptoRng.fromQuantumState(state);
+
+// Or from a 32-byte seed
+const rng2 = CryptoRng.fromSeed(new Uint8Array(32));
+
+// Generate random bytes
+const bytes = rng.randomBytes(64);
+console.log(`Entropy: ${rng.entropyBits} bits`);
+```
+
+### SymmetricCrypto (JavaScript)
+
+Symmetric encryption with AES-256-GCM or ChaCha20-Poly1305.
+
+```javascript
+import { QuantumState, SymmetricCrypto } from 'quantumwall';
+
+// Create crypto context seeded from quantum state
+const state = new QuantumState(100, 32);
+state.hadamardAll();
+const crypto = SymmetricCrypto.fromQuantumState(state);
+
+// Or from explicit key and seed
+const key = new Uint8Array(32); // Your 256-bit key
+const seed = new Uint8Array(32); // Nonce generation seed
+const crypto2 = SymmetricCrypto.fromKey(key, seed);
+
+// Encrypt with AES-256-GCM
+const message = new TextEncoder().encode("Secret message");
+const encrypted = crypto.encryptAesGcm(message);
+
+// Or with ChaCha20-Poly1305
+const encrypted2 = crypto.encryptChaCha20(message);
+
+// Encrypt with Additional Authenticated Data (AAD)
+const aad = new TextEncoder().encode("metadata");
+const encrypted3 = crypto.encryptWithAad(message, aad, "aes-256-gcm");
+
+// Decrypt
+const decrypted = crypto.decrypt(encrypted);
+const decryptedWithAad = crypto.decryptWithAad(encrypted3, aad);
+
+// Serialize for storage/transmission
+const bytes = encrypted.toBytes();
+const restored = EncryptedPayload.fromBytes(bytes);
+```
+
+### Key Derivation (JavaScript)
+
+Derive keys using HKDF with SHA-256.
+
+```javascript
+import { deriveKey, sha256 } from 'quantumwall';
+
+// Derive a 256-bit key
+const inputKey = new Uint8Array([...]); // Input keying material
+const salt = new Uint8Array([...]);     // Optional salt
+const info = new TextEncoder().encode("app-context");
+const derivedKey = deriveKey(inputKey, salt, info);
+
+// SHA-256 hash
+const hash = sha256(new TextEncoder().encode("data"));
+```
+
+### Rust Crypto API
+
+```rust
+use quantum_wall::{MPS, QuantumRng, SecretKey, encrypt, decrypt};
+use quantum_wall::crypto::symmetric::SymmetricAlgorithm;
+
+fn main() {
+    // Create RNG from quantum state
+    let mut mps = MPS::new(100, 32);
+    let mut rng = QuantumRng::from_mps(&mps).unwrap();
+
+    // Generate encryption key
+    let key = SecretKey::generate(&mut rng);
+
+    // Encrypt data
+    let plaintext = b"Hello, quantum world!";
+    let encrypted = encrypt(
+        &key,
+        plaintext,
+        None, // No AAD
+        &mut rng,
+        SymmetricAlgorithm::ChaCha20Poly1305,
+    ).unwrap();
+
+    // Decrypt data
+    let decrypted = decrypt(&key, &encrypted, None).unwrap();
+    assert_eq!(plaintext.to_vec(), decrypted);
+}
+```
+
+### Supported Algorithms
+
+| Algorithm | Key Size | Nonce | Tag | Use Case |
+|-----------|----------|-------|-----|----------|
+| AES-256-GCM | 256-bit | 96-bit | 128-bit | Data at rest, high-performance |
+| ChaCha20-Poly1305 | 256-bit | 96-bit | 128-bit | Data in transit, side-channel resistant |
+| HKDF-SHA256 | Variable | Variable | N/A | Key derivation |
+| SHA-256 | N/A | N/A | 256-bit | Hashing |
+
+### Security Notes
+
+- Keys are automatically zeroed from memory on drop
+- Nonces are generated securely and never reused
+- All encryption uses authenticated modes (GCM, Poly1305)
+- Quantum entropy provides high-quality seeding for the CSPRNG
+
+---
+
 ## How It Works
 
 ### Matrix Product States (MPS)
@@ -232,7 +358,13 @@ quantumwall/
 │   ├── mps.rs          # Matrix Product State implementation
 │   ├── entropy.rs      # Entropy calculations
 │   ├── gates.rs        # Quantum gate operations
-│   └── wasm.rs         # WebAssembly bindings
+│   ├── wasm.rs         # WebAssembly bindings
+│   └── crypto/
+│       ├── mod.rs      # Crypto module structure
+│       ├── rng.rs      # Quantum-seeded CSPRNG
+│       ├── keys.rs     # Key types and X25519
+│       ├── symmetric.rs # AES-GCM, ChaCha20-Poly1305
+│       └── kdf.rs      # HKDF key derivation
 ├── pkg/                # Built npm package
 ├── Cargo.toml          # Rust config
 └── package.json        # npm config
@@ -246,7 +378,9 @@ quantumwall/
 - **Quantum Error Correction**: Analyze entanglement in error-correcting codes
 - **Many-Body Physics**: Compute entanglement in condensed matter systems
 - **Quantum Machine Learning**: Entropy-based features for quantum ML models
-- **Cryptographic Analysis**: Entropy analysis of quantum random number generators
+- **Quantum Cryptography**: Use MPS entropy to seed cryptographically secure RNGs
+- **Secure Data Storage**: Encrypt data at rest with quantum-seeded AES-256-GCM
+- **Secure Communications**: Encrypt data in transit with ChaCha20-Poly1305
 
 ---
 

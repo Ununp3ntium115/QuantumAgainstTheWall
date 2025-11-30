@@ -13,6 +13,7 @@
 //! - **Matrix Product States (MPS)**: Efficient representation of quantum states
 //! - **Entanglement Entropy**: Compute von Neumann entropy from bond singular values
 //! - **Quantum Gates**: Apply single and two-qubit gates while maintaining MPS form
+//! - **Quantum Cryptography**: Encryption primitives seeded by quantum entropy
 //! - **WebAssembly Support**: Use from JavaScript/TypeScript via wasm-bindgen
 //!
 //! ## Example
@@ -28,6 +29,7 @@
 //! println!("Augmented entropy: {}", augmented_entropy(&mps));
 //! ```
 
+pub mod crypto;
 pub mod entropy;
 pub mod gates;
 pub mod mps;
@@ -36,6 +38,10 @@ pub mod mps;
 pub mod wasm;
 
 // Re-export main types and functions
+pub use crypto::{
+    CryptoError, CryptoResult, DerivedKey, EncryptionKey, KeyPair, PublicKey, QuantumRng,
+    SecretKey, Zeroize, derive_key, decrypt, encrypt,
+};
 pub use entropy::{
     augmented_entropy, average_entanglement_entropy, bond_entropy, entanglement_entropy,
     max_entropy_bound, total_entanglement_entropy,

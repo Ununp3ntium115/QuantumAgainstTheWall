@@ -5,6 +5,8 @@
 
 use wasm_bindgen::prelude::*;
 
+use crate::crypto::{self, QuantumRng, SecretKey, EncryptedData};
+use crate::crypto::symmetric::SymmetricAlgorithm;
 use crate::entropy;
 use crate::gates::{apply_single_gate, standard_gates};
 use crate::mps::MPS;
@@ -341,6 +343,223 @@ pub fn estimate_memory(n_qubits: usize, bond_dim: usize) -> usize {
     let tensor_size = bond_dim * 2 * bond_dim * 16;
     let sv_size = bond_dim * 8;
     n_qubits * tensor_size + (n_qubits - 1) * sv_size
+}
+
+// ============================================================================
+// Cryptography WASM Bindings
+// ============================================================================
+
+/// A quantum-seeded cryptographically secure RNG.
+#[wasm_bindgen]
+pub struct CryptoRng {
+    rng: QuantumRng,
+}
+
+#[wasm_bindgen]
+impl CryptoRng {
+    /// Create a new RNG seeded from a quantum state.
+    ///
+    /// The entropy from the MPS entanglement structure is used to seed
+    /// a ChaCha20-based CSPRNG.
+    #[wasm_bindgen(js_name = fromQuantumState)]
+    pub fn from_quantum_state(state: &QuantumState) -> Result<CryptoRng, JsError> {
+        QuantumRng::from_mps(&state.mps)
+            .map(|rng| CryptoRng { rng })
+            .map_err(|e| JsError::new(&format!("Failed to create RNG: {}", e)))
+    }
+
+    /// Create a new RNG from a 32-byte seed.
+    #[wasm_bindgen(js_name = fromSeed)]
+    pub fn from_seed(seed: &[u8]) -> Result<CryptoRng, JsError> {
+        if seed.len() != 32 {
+            return Err(JsError::new("Seed must be exactly 32 bytes"));
+        }
+        let mut seed_arr = [0u8; 32];
+        seed_arr.copy_from_slice(seed);
+        Ok(CryptoRng {
+            rng: QuantumRng::from_seed(&seed_arr, 256.0),
+        })
+    }
+
+    /// Generate random bytes.
+    #[wasm_bindgen(js_name = randomBytes)]
+    pub fn random_bytes(&mut self, len: usize) -> Vec<u8> {
+        let mut bytes = vec![0u8; len];
+        self.rng.fill_bytes(&mut bytes);
+        bytes
+    }
+
+    /// Get the entropy bits used to seed this RNG.
+    #[wasm_bindgen(getter, js_name = entropyBits)]
+    pub fn entropy_bits(&self) -> f64 {
+        self.rng.entropy_bits()
+    }
+}
+
+/// Encrypted data container for WASM.
+#[wasm_bindgen]
+pub struct EncryptedPayload {
+    data: EncryptedData,
+}
+
+#[wasm_bindgen]
+impl EncryptedPayload {
+    /// Get the ciphertext bytes.
+    #[wasm_bindgen(getter)]
+    pub fn ciphertext(&self) -> Vec<u8> {
+        self.data.ciphertext.clone()
+    }
+
+    /// Get the nonce bytes.
+    #[wasm_bindgen(getter)]
+    pub fn nonce(&self) -> Vec<u8> {
+        self.data.nonce.clone()
+    }
+
+    /// Get the authentication tag bytes.
+    #[wasm_bindgen(getter)]
+    pub fn tag(&self) -> Vec<u8> {
+        self.data.tag.clone()
+    }
+
+    /// Get the algorithm name.
+    #[wasm_bindgen(getter)]
+    pub fn algorithm(&self) -> String {
+        format!("{:?}", self.data.algorithm)
+    }
+
+    /// Serialize to bytes for storage/transmission.
+    #[wasm_bindgen(js_name = toBytes)]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.data.to_bytes()
+    }
+
+    /// Deserialize from bytes.
+    #[wasm_bindgen(js_name = fromBytes)]
+    pub fn from_bytes(bytes: &[u8]) -> Result<EncryptedPayload, JsError> {
+        EncryptedData::from_bytes(bytes)
+            .map(|data| EncryptedPayload { data })
+            .map_err(|e| JsError::new(&format!("Failed to parse encrypted data: {}", e)))
+    }
+}
+
+/// Symmetric encryption interface for WASM.
+#[wasm_bindgen]
+pub struct SymmetricCrypto {
+    key: SecretKey,
+    rng: QuantumRng,
+}
+
+#[wasm_bindgen]
+impl SymmetricCrypto {
+    /// Create a new symmetric encryption context with a quantum-seeded key.
+    #[wasm_bindgen(js_name = fromQuantumState)]
+    pub fn from_quantum_state(state: &QuantumState) -> Result<SymmetricCrypto, JsError> {
+        let mut rng = QuantumRng::from_mps(&state.mps)
+            .map_err(|e| JsError::new(&format!("Failed to create RNG: {}", e)))?;
+        let key = SecretKey::generate(&mut rng);
+        Ok(SymmetricCrypto { key, rng })
+    }
+
+    /// Create a new symmetric encryption context from a 32-byte key.
+    #[wasm_bindgen(js_name = fromKey)]
+    pub fn from_key(key_bytes: &[u8], seed: &[u8]) -> Result<SymmetricCrypto, JsError> {
+        if key_bytes.len() != 32 {
+            return Err(JsError::new("Key must be exactly 32 bytes"));
+        }
+        if seed.len() != 32 {
+            return Err(JsError::new("Seed must be exactly 32 bytes"));
+        }
+
+        let mut key_arr = [0u8; 32];
+        key_arr.copy_from_slice(key_bytes);
+        let key = SecretKey::from_bytes(key_arr);
+
+        let mut seed_arr = [0u8; 32];
+        seed_arr.copy_from_slice(seed);
+        let rng = QuantumRng::from_seed(&seed_arr, 256.0);
+
+        Ok(SymmetricCrypto { key, rng })
+    }
+
+    /// Get the encryption key bytes.
+    ///
+    /// WARNING: Handle with care - this exposes the raw key material.
+    #[wasm_bindgen(js_name = keyBytes)]
+    pub fn key_bytes(&self) -> Vec<u8> {
+        self.key.as_bytes().to_vec()
+    }
+
+    /// Encrypt data using AES-256-GCM.
+    #[wasm_bindgen(js_name = encryptAesGcm)]
+    pub fn encrypt_aes_gcm(&mut self, plaintext: &[u8]) -> Result<EncryptedPayload, JsError> {
+        crypto::encrypt(&self.key, plaintext, None, &mut self.rng, SymmetricAlgorithm::Aes256Gcm)
+            .map(|data| EncryptedPayload { data })
+            .map_err(|e| JsError::new(&format!("Encryption failed: {}", e)))
+    }
+
+    /// Encrypt data using ChaCha20-Poly1305.
+    #[wasm_bindgen(js_name = encryptChaCha20)]
+    pub fn encrypt_chacha20(&mut self, plaintext: &[u8]) -> Result<EncryptedPayload, JsError> {
+        crypto::encrypt(&self.key, plaintext, None, &mut self.rng, SymmetricAlgorithm::ChaCha20Poly1305)
+            .map(|data| EncryptedPayload { data })
+            .map_err(|e| JsError::new(&format!("Encryption failed: {}", e)))
+    }
+
+    /// Encrypt data with additional authenticated data (AAD).
+    #[wasm_bindgen(js_name = encryptWithAad)]
+    pub fn encrypt_with_aad(
+        &mut self,
+        plaintext: &[u8],
+        aad: &[u8],
+        algorithm: &str,
+    ) -> Result<EncryptedPayload, JsError> {
+        let algo = match algorithm {
+            "aes-256-gcm" | "aes" | "AES" => SymmetricAlgorithm::Aes256Gcm,
+            "chacha20-poly1305" | "chacha20" | "ChaCha20" => SymmetricAlgorithm::ChaCha20Poly1305,
+            _ => return Err(JsError::new("Unknown algorithm. Use 'aes-256-gcm' or 'chacha20-poly1305'")),
+        };
+
+        crypto::encrypt(&self.key, plaintext, Some(aad), &mut self.rng, algo)
+            .map(|data| EncryptedPayload { data })
+            .map_err(|e| JsError::new(&format!("Encryption failed: {}", e)))
+    }
+
+    /// Decrypt data.
+    #[wasm_bindgen]
+    pub fn decrypt(&self, encrypted: &EncryptedPayload) -> Result<Vec<u8>, JsError> {
+        crypto::decrypt(&self.key, &encrypted.data, None)
+            .map_err(|e| JsError::new(&format!("Decryption failed: {}", e)))
+    }
+
+    /// Decrypt data with additional authenticated data (AAD).
+    #[wasm_bindgen(js_name = decryptWithAad)]
+    pub fn decrypt_with_aad(&self, encrypted: &EncryptedPayload, aad: &[u8]) -> Result<Vec<u8>, JsError> {
+        crypto::decrypt(&self.key, &encrypted.data, Some(aad))
+            .map_err(|e| JsError::new(&format!("Decryption failed: {}", e)))
+    }
+}
+
+/// Derive a key using HKDF.
+///
+/// # Arguments
+/// * `input_key` - Input keying material
+/// * `salt` - Optional salt (can be empty)
+/// * `info` - Context/application-specific info
+///
+/// # Returns
+/// A 32-byte derived key
+#[wasm_bindgen(js_name = deriveKey)]
+pub fn derive_key(input_key: &[u8], salt: &[u8], info: &[u8]) -> Result<Vec<u8>, JsError> {
+    crypto::derive_key(input_key, salt, info)
+        .map(|k| k.as_bytes().to_vec())
+        .map_err(|e| JsError::new(&format!("Key derivation failed: {}", e)))
+}
+
+/// Hash data with SHA-256.
+#[wasm_bindgen(js_name = sha256)]
+pub fn sha256(data: &[u8]) -> Vec<u8> {
+    crypto::kdf::hash_sha256(data).to_vec()
 }
 
 #[cfg(test)]
