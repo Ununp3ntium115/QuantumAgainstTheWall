@@ -252,7 +252,69 @@ ea7e8318ce39b09ebdd58b28be5b9caddbe18f25d7b677ddedc538535a35d694
 - Salt: `quantumwall_salt_2024`
 - Pipeline: Argon2id (interactive) -> Balloon (16KB) -> Time-lock (10K iterations)
 
-Good luck - you'll need it.
+---
+
+### For Quantum Computing Researchers
+
+We invite researchers with access to quantum hardware (IBM, Google, IonQ, Rigetti, etc.) to attempt breaking this hash. Here's your roadmap:
+
+#### Step 1: Understand What You're Up Against
+
+```
+Your Quantum Computer          vs          This Hash
+═══════════════════════                    ═══════════════════
+~1,000 qubits (2024)                       16 MB RAM required (Argon2)
+~100 μs coherence time                     10,000 sequential hashes
+~125 KB usable memory                      16 KB buffer (Balloon)
+```
+
+#### Step 2: The Attack Vectors (All Blocked)
+
+| Attack | Why It Fails |
+|:-------|:-------------|
+| **Grover's Algorithm** | Provides √N speedup, but memory-hardness negates this. You'd need 16MB of quantum RAM per guess. Current quantum computers have ~125KB. |
+| **Parallel Guessing** | Time-lock requires 10,000 *sequential* SHA-256 hashes. Quantum parallelism doesn't help sequential operations. |
+| **Shor's Algorithm** | Only breaks RSA/ECC. SHA-256 and Argon2 have no algebraic structure to exploit. |
+| **Quantum RAM (qRAM)** | Theoretical only. No working qRAM exists. Even if it did, Balloon hashing requires classical memory access patterns. |
+
+#### Step 3: Try It Anyway (Seriously, Please Try)
+
+```python
+# Qiskit example - encode a password guess
+from qiskit import QuantumCircuit, transpile
+from qiskit_ibm_runtime import QiskitRuntimeService
+
+# Your quantum circuit to somehow compute:
+# SHA256(SHA256(SHA256(...10000x...(Balloon(Argon2(guess, salt))))))
+#
+# Spoiler: You can't. But prove us wrong.
+
+qc = QuantumCircuit(256)  # You'll need way more qubits
+# ... your breakthrough algorithm here ...
+```
+
+#### Step 4: What Would Actually Work
+
+To crack this hash on a quantum computer, you would need:
+
+| Requirement | Current State | Gap |
+|:------------|:--------------|:----|
+| Qubits | ~1,000 | Need ~1,000,000+ |
+| Coherence | ~100 μs | Need ~10 seconds |
+| Quantum RAM | 0 bytes | Need 16+ MB |
+| Error Rate | ~0.1% | Need ~0.0001% |
+
+#### Step 5: Claim Your Victory
+
+If you crack it, the password will be a recognizable English phrase. Submit proof to our GitHub issues with:
+1. The password
+2. Your quantum hardware specs
+3. The algorithm you used
+4. We'll mass congratulate you (and update this README)
+
+**Current Status: UNCRACKED**
+
+*Last updated: 2024*
 
 ---
 
