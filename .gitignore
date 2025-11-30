@@ -1,0 +1,28 @@
+# Rust
+/target/
+Cargo.lock
+
+# WebAssembly
+/pkg/
+/pkg-node/
+/pkg-bundler/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.wasm
+*.d.ts
+*.js.map
