@@ -5,22 +5,26 @@
 //! - **Symmetric encryption**: AES-256-GCM and ChaCha20-Poly1305 for data at rest
 //! - **Key exchange**: Post-quantum key encapsulation for data in transit
 //! - **Key derivation**: HKDF for deriving keys from shared secrets
+//! - **Memory-hard functions**: Argon2id and Balloon hashing
+//! - **Time-lock puzzles**: Sequential work that can't be parallelized
+//! - **Quantum Fortress**: Combined hardening for maximum security
 //!
 //! # Architecture
 //!
 //! ```text
-//! ┌─────────────────────────────────────────────────────────────┐
-//! │                    QuantumWall Crypto                        │
-//! ├─────────────────────────────────────────────────────────────┤
-//! │  Quantum Entropy (MPS)  →  CSPRNG Seed  →  Key Generation   │
-//! ├─────────────────────────────────────────────────────────────┤
-//! │                                                              │
-//! │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
-//! │  │  At Rest     │    │  In Transit  │    │  Key Mgmt    │  │
-//! │  │  AES-256-GCM │    │  ML-KEM      │    │  HKDF        │  │
-//! │  │  ChaCha20    │    │  X25519      │    │  Key Store   │  │
-//! │  └──────────────┘    └──────────────┘    └──────────────┘  │
-//! └─────────────────────────────────────────────────────────────┘
+//! ┌─────────────────────────────────────────────────────────────────┐
+//! │                    QuantumWall Crypto                            │
+//! ├─────────────────────────────────────────────────────────────────┤
+//! │  Quantum Entropy (MPS)  →  CSPRNG Seed  →  Key Generation       │
+//! ├─────────────────────────────────────────────────────────────────┤
+//! │                                                                  │
+//! │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
+//! │  │  At Rest     │    │  In Transit  │    │  Hardening   │      │
+//! │  │  AES-256-GCM │    │  ML-KEM      │    │  Argon2id    │      │
+//! │  │  ChaCha20    │    │  X25519      │    │  Balloon     │      │
+//! │  └──────────────┘    └──────────────┘    │  Time-lock   │      │
+//! │                                          └──────────────┘      │
+//! └─────────────────────────────────────────────────────────────────┘
 //! ```
 
 pub mod keys;
@@ -28,11 +32,23 @@ pub mod rng;
 pub mod symmetric;
 pub mod kdf;
 
+// Hardening modules for quantum resistance
+pub mod argon2;
+pub mod balloon;
+pub mod timelock;
+pub mod fortress;
+
 // Re-exports
 pub use keys::{SecretKey, PublicKey, KeyPair, EncryptionKey};
 pub use rng::QuantumRng;
 pub use symmetric::{encrypt, decrypt, EncryptedData};
 pub use kdf::{derive_key, DerivedKey};
+
+// Hardening re-exports
+pub use argon2::{Argon2Params, Argon2Key, argon2_hash};
+pub use balloon::{BalloonParams, BalloonKey, balloon_hash};
+pub use timelock::{TimeLockParams, TimeLockPuzzle, hash_chain_lock};
+pub use fortress::{QuantumFortress, FortressConfig, FortressLevel, FortressData, FortressKey};
 
 /// Cryptographic error types
 #[derive(Debug, Clone, PartialEq)]
