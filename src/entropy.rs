@@ -23,7 +23,7 @@ use std::f64::consts::PI;
 ///
 /// # Example
 /// ```
-/// use quantum_against_the_wall::bond_entropy;
+/// use quantum_wall::bond_entropy;
 ///
 /// // Maximally entangled state of 2 qubits: λ = [1/√2, 1/√2]
 /// let sv = vec![0.7071067811865476, 0.7071067811865476];

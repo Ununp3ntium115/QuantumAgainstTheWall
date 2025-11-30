@@ -234,7 +234,7 @@ pub mod standard_gates {
 ///
 /// # Example
 /// ```
-/// use quantum_against_the_wall::{MPS, apply_single_gate, standard_gates};
+/// use quantum_wall::{MPS, apply_single_gate, standard_gates};
 ///
 /// let mut mps = MPS::new(10, 32);
 /// apply_single_gate(&mut mps, 0, &standard_gates::hadamard());

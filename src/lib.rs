@@ -18,7 +18,7 @@
 //! ## Example
 //!
 //! ```rust
-//! use quantum_against_the_wall::{MPS, total_entanglement_entropy, augmented_entropy};
+//! use quantum_wall::{MPS, total_entanglement_entropy, augmented_entropy};
 //!
 //! // Create a 1000-qubit state with bond dimension 32
 //! let mps = MPS::new(1000, 32);

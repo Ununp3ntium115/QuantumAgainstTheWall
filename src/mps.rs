@@ -47,7 +47,7 @@ impl MPS {
     ///
     /// # Example
     /// ```
-    /// use quantum_against_the_wall::MPS;
+    /// use quantum_wall::MPS;
     /// let mps = MPS::new(1000, 64);
     /// assert_eq!(mps.n_sites(), 1000);
     /// ```
@@ -68,24 +68,40 @@ impl MPS {
         let physical_dim: usize = 2;
         let mut tensors = Vec::with_capacity(n_sites);
 
+        // Helper to compute 2^exp capped at bond_dim (avoids overflow)
+        let capped_pow = |exp: usize| -> usize {
+            if exp >= 64 {
+                // 2^64 would overflow, just use bond_dim
+                bond_dim
+            } else {
+                bond_dim.min(1usize << exp)
+            }
+        };
+
         for i in 0..n_sites {
             // Bond dimensions grow from edges to center, capped at bond_dim
             let left_dim = if i == 0 {
                 1
             } else {
-                bond_dim.min(physical_dim.pow(i as u32))
+                capped_pow(i)
             };
 
             let right_dim = if i == n_sites - 1 {
                 1
             } else {
-                bond_dim.min(physical_dim.pow((n_sites - 1 - i) as u32))
+                capped_pow(n_sites - 1 - i)
             };
 
             let mut tensor = Array3::<Complex64>::zeros((left_dim, physical_dim, right_dim));
 
             // Initialize to product state
-            let local_state = (state >> (n_sites - 1 - i)) & 1;
+            // For large n_sites, the shift might overflow - in that case, the bit is 0
+            let shift_amount = n_sites - 1 - i;
+            let local_state = if shift_amount >= usize::BITS as usize {
+                0
+            } else {
+                (state >> shift_amount) & 1
+            };
             tensor[[0, local_state, 0]] = Complex64::new(1.0, 0.0);
 
             tensors.push(tensor);
