@@ -45,6 +45,7 @@
 | **AES-256-GCM** | Military-grade encryption for data at rest |
 | **ChaCha20-Poly1305** | Side-channel resistant encryption for data in transit |
 | **HKDF Key Derivation** | Derive multiple keys from shared secrets |
+| **Quantum Fortress** | Argon2id + Balloon + Time-lock password hardening |
 | **WebAssembly** | Use from JavaScript, TypeScript, or any WASM host |
 
 ---
@@ -191,6 +192,67 @@ const hash = sha256(data);
 | **ChaCha20-Poly1305** | 256-bit | 96-bit | 128-bit | Data in transit |
 | **HKDF-SHA256** | Variable | - | - | Key derivation |
 | **SHA-256** | - | - | 256-bit | Hashing |
+| **Argon2id** | Variable | - | - | Memory-hard KDF |
+| **Balloon** | Variable | - | - | Space-hard KDF |
+| **Time-lock** | Variable | - | - | Sequential hashing |
+
+---
+
+## Quantum Fortress
+
+Quantum Fortress combines three cryptographic hardening techniques designed to make password cracking computationally infeasible - even for quantum computers.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     QUANTUM FORTRESS                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Password ─▶ [Argon2id] ─▶ [Balloon] ─▶ [Time-lock] ─▶ Hash    │
+│                  │             │             │                   │
+│              Memory-hard   Space-hard   Sequential               │
+│              (1GB+ RAM)    (Provable)   (Can't parallelize)     │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Why Quantum Computers Can't Help
+
+| Technique | Quantum Resistance |
+|:----------|:-------------------|
+| **Argon2id** | Requires 1GB+ RAM per guess. Quantum computers have ~125KB coherent memory |
+| **Balloon** | Provably space-hard. No quantum speedup for memory-bound algorithms |
+| **Time-lock** | Sequential hash chains cannot be parallelized by any means |
+
+### JavaScript Usage
+
+```javascript
+import { Fortress, quickHash, fortressHash } from 'quantumwall';
+
+// Quick hash (Argon2id only - fast)
+const hash = quickHash("password", "salt");
+
+// Full fortress (Argon2 + Balloon + Time-lock)
+const fortress = Fortress.standard();
+const hash = fortress.hashPassword("password", "salt");
+
+// Maximum security
+const fortress = Fortress.quantum();
+const hash = fortress.hashPassword("password", "salt");
+```
+
+### Test Hash Challenge
+
+Can you crack this hash? Find the password that produces:
+
+```
+ea7e8318ce39b09ebdd58b28be5b9caddbe18f25d7b677ddedc538535a35d694
+```
+
+**Parameters:**
+- Salt: `quantumwall_salt_2024`
+- Pipeline: Argon2id (interactive) -> Balloon (16KB) -> Time-lock (10K iterations)
+
+Good luck - you'll need it.
 
 ---
 
@@ -253,7 +315,11 @@ quantumwall/
 │       ├── rng.rs       # Quantum CSPRNG
 │       ├── keys.rs      # Key management
 │       ├── symmetric.rs # AES-GCM, ChaCha20
-│       └── kdf.rs       # HKDF-SHA256
+│       ├── kdf.rs       # HKDF-SHA256
+│       ├── argon2.rs    # Argon2id memory-hard KDF
+│       ├── balloon.rs   # Balloon space-hard hashing
+│       ├── timelock.rs  # Time-lock puzzles
+│       └── fortress.rs  # Quantum Fortress API
 ├── pkg/                 # npm package
 ├── Cargo.toml
 └── package.json

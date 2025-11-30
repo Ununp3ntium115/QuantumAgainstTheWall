@@ -413,13 +413,13 @@ impl EncryptedPayload {
     /// Get the nonce bytes.
     #[wasm_bindgen(getter)]
     pub fn nonce(&self) -> Vec<u8> {
-        self.data.nonce.clone()
+        self.data.nonce.to_vec()
     }
 
     /// Get the authentication tag bytes.
     #[wasm_bindgen(getter)]
     pub fn tag(&self) -> Vec<u8> {
-        self.data.tag.clone()
+        self.data.tag.to_vec()
     }
 
     /// Get the algorithm name.
@@ -473,7 +473,7 @@ impl SymmetricCrypto {
 
         let mut key_arr = [0u8; 32];
         key_arr.copy_from_slice(key_bytes);
-        let key = SecretKey::from_bytes(key_arr);
+        let key = SecretKey::new(key_arr);
 
         let mut seed_arr = [0u8; 32];
         seed_arr.copy_from_slice(seed);
@@ -560,6 +560,229 @@ pub fn derive_key(input_key: &[u8], salt: &[u8], info: &[u8]) -> Result<Vec<u8>,
 #[wasm_bindgen(js_name = sha256)]
 pub fn sha256(data: &[u8]) -> Vec<u8> {
     crypto::kdf::hash_sha256(data).to_vec()
+}
+
+// ============================================================================
+// Quantum Fortress WASM Bindings
+// ============================================================================
+
+use crate::crypto::fortress::FortressLevel;
+use crate::crypto::argon2::{Argon2Params, argon2_hash};
+use crate::crypto::balloon::{BalloonParams, balloon_hash};
+use crate::crypto::timelock::hash_chain_lock;
+
+/// Quantum Fortress - maximum cryptographic hardening
+#[wasm_bindgen]
+pub struct Fortress {
+    level: FortressLevel,
+    use_argon2: bool,
+    use_balloon: bool,
+    use_timelock: bool,
+}
+
+#[wasm_bindgen]
+impl Fortress {
+    /// Create a new Fortress with interactive settings (fast)
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        Self {
+            level: FortressLevel::Interactive,
+            use_argon2: true,
+            use_balloon: false,
+            use_timelock: false,
+        }
+    }
+
+    /// Create with standard security
+    #[wasm_bindgen(js_name = standard)]
+    pub fn standard() -> Self {
+        Self {
+            level: FortressLevel::Standard,
+            use_argon2: true,
+            use_balloon: true,
+            use_timelock: true,
+        }
+    }
+
+    /// Create with maximum quantum resistance
+    #[wasm_bindgen(js_name = quantum)]
+    pub fn quantum() -> Self {
+        Self {
+            level: FortressLevel::Quantum,
+            use_argon2: true,
+            use_balloon: true,
+            use_timelock: true,
+        }
+    }
+
+    /// Hash a password using the Fortress pipeline
+    /// Returns hex-encoded hash
+    #[wasm_bindgen(js_name = hashPassword)]
+    pub fn hash_password(&self, password: &str, salt: &str) -> Result<String, JsError> {
+        let password_bytes = password.as_bytes();
+        let salt_bytes = salt.as_bytes();
+
+        // Ensure salt is at least 16 bytes
+        let mut full_salt = [0u8; 32];
+        let salt_hash = crypto::kdf::hash_sha256(salt_bytes);
+        full_salt.copy_from_slice(&salt_hash);
+
+        let mut result = password_bytes.to_vec();
+
+        // Stage 1: Argon2id
+        if self.use_argon2 {
+            let params = match self.level {
+                FortressLevel::Interactive => Argon2Params::interactive(),
+                FortressLevel::Standard => Argon2Params::moderate(),
+                FortressLevel::High => Argon2Params::high_security(),
+                FortressLevel::Quantum => Argon2Params {
+                    memory_cost: 262144, // 256MB for WASM (limited)
+                    time_cost: 4,
+                    parallelism: 1,
+                    output_len: 32,
+                    variant: crate::crypto::argon2::Argon2Variant::Argon2id,
+                },
+            };
+            result = argon2_hash(&result, &full_salt, &params)
+                .map_err(|e| JsError::new(&format!("Argon2 failed: {}", e)))?;
+        }
+
+        // Stage 2: Balloon hashing
+        if self.use_balloon {
+            let params = match self.level {
+                FortressLevel::Interactive => BalloonParams {
+                    space_cost: 16384,
+                    time_cost: 1,
+                    delta: 3,
+                    output_len: 32,
+                },
+                FortressLevel::Standard => BalloonParams {
+                    space_cost: 65536,
+                    time_cost: 2,
+                    delta: 4,
+                    output_len: 32,
+                },
+                _ => BalloonParams {
+                    space_cost: 262144,
+                    time_cost: 3,
+                    delta: 4,
+                    output_len: 32,
+                },
+            };
+            result = balloon_hash(&result, &full_salt, &params)
+                .map_err(|e| JsError::new(&format!("Balloon failed: {}", e)))?;
+        }
+
+        // Stage 3: Time-lock (hash chain)
+        if self.use_timelock {
+            let iterations = match self.level {
+                FortressLevel::Interactive => 10_000,
+                FortressLevel::Standard => 100_000,
+                FortressLevel::High => 500_000,
+                FortressLevel::Quantum => 1_000_000,
+            };
+            let input = [&result[..], &full_salt].concat();
+            result = hash_chain_lock(&input, iterations).to_vec();
+        }
+
+        // Return as hex
+        Ok(hex_encode(&result))
+    }
+
+    /// Verify a password against a hash
+    #[wasm_bindgen(js_name = verifyPassword)]
+    pub fn verify_password(&self, password: &str, salt: &str, expected_hash: &str) -> Result<bool, JsError> {
+        let computed = self.hash_password(password, salt)?;
+        Ok(constant_time_compare(&computed, expected_hash))
+    }
+
+    /// Get estimated time in seconds
+    #[wasm_bindgen(getter, js_name = estimatedTime)]
+    pub fn estimated_time(&self) -> f64 {
+        let mut time = 0.0;
+        if self.use_argon2 {
+            time += match self.level {
+                FortressLevel::Interactive => 0.1,
+                FortressLevel::Standard => 0.5,
+                FortressLevel::High => 2.0,
+                FortressLevel::Quantum => 5.0,
+            };
+        }
+        if self.use_balloon {
+            time += match self.level {
+                FortressLevel::Interactive => 0.05,
+                FortressLevel::Standard => 0.3,
+                FortressLevel::High => 1.0,
+                FortressLevel::Quantum => 3.0,
+            };
+        }
+        if self.use_timelock {
+            time += match self.level {
+                FortressLevel::Interactive => 0.01,
+                FortressLevel::Standard => 0.1,
+                FortressLevel::High => 0.5,
+                FortressLevel::Quantum => 1.0,
+            };
+        }
+        time
+    }
+
+    /// Get memory required in bytes
+    #[wasm_bindgen(getter, js_name = memoryRequired)]
+    pub fn memory_required(&self) -> usize {
+        let mut mem = 0;
+        if self.use_argon2 {
+            mem = match self.level {
+                FortressLevel::Interactive => 16 * 1024 * 1024,
+                FortressLevel::Standard => 64 * 1024 * 1024,
+                FortressLevel::High => 256 * 1024 * 1024,
+                FortressLevel::Quantum => 256 * 1024 * 1024, // Limited for WASM
+            };
+        }
+        if self.use_balloon {
+            let balloon_mem = match self.level {
+                FortressLevel::Interactive => 16384 * 32,
+                FortressLevel::Standard => 65536 * 32,
+                _ => 262144 * 32,
+            };
+            mem = mem.max(balloon_mem);
+        }
+        mem
+    }
+}
+
+/// Quick hash using Argon2id only (for testing)
+#[wasm_bindgen(js_name = quickHash)]
+pub fn quick_hash(password: &str, salt: &str) -> Result<String, JsError> {
+    let params = Argon2Params::interactive();
+    let salt_hash = crypto::kdf::hash_sha256(salt.as_bytes());
+    let hash = argon2_hash(password.as_bytes(), &salt_hash, &params)
+        .map_err(|e| JsError::new(&format!("Hash failed: {}", e)))?;
+    Ok(hex_encode(&hash))
+}
+
+/// Full fortress hash (Argon2 + Balloon + Time-lock)
+#[wasm_bindgen(js_name = fortressHash)]
+pub fn fortress_hash(password: &str, salt: &str) -> Result<String, JsError> {
+    let fortress = Fortress::standard();
+    fortress.hash_password(password, salt)
+}
+
+/// Convert bytes to hex string
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+/// Constant-time string comparison
+fn constant_time_compare(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut result = 0u8;
+    for (x, y) in a.bytes().zip(b.bytes()) {
+        result |= x ^ y;
+    }
+    result == 0
 }
 
 #[cfg(test)]
