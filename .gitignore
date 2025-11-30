@@ -2,8 +2,7 @@
 /target/
 Cargo.lock
 
-# WebAssembly
-/pkg/
+# WebAssembly (keep pkg/ for npm publish)
 /pkg-node/
 /pkg-bundler/
 

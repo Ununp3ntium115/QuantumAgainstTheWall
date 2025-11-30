@@ -1,12 +1,12 @@
 {
-  "name": "@quantum-wall/entropy",
+  "name": "quantumwall",
   "version": "0.1.0",
   "description": "Quantum entropy computation at scale via tensor networks",
-  "main": "pkg/quantum_against_the_wall.js",
-  "module": "pkg/quantum_against_the_wall.js",
-  "types": "pkg/quantum_against_the_wall.d.ts",
+  "main": "pkg/quantum_wall.js",
+  "module": "pkg/quantum_wall.js",
+  "types": "pkg/quantum_wall.d.ts",
   "sideEffects": [
-    "./pkg/quantum_against_the_wall.js"
+    "./pkg/quantum_wall.js"
   ],
   "scripts": {
     "build": "wasm-pack build --target web --out-dir pkg",
@@ -33,7 +33,7 @@
     "quantum-computing"
   ],
   "author": "QuantumAgainstTheWall Contributors",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "bugs": {
     "url": "https://github.com/Ununp3ntium115/QuantumAgainstTheWall/issues"
   },

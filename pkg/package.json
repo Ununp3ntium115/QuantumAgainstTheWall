@@ -1,0 +1,31 @@
+{
+  "name": "quantumwall",
+  "type": "module",
+  "collaborators": [
+    "QuantumAgainstTheWall Contributors"
+  ],
+  "description": "Quantum entropy computation at scale via tensor networks (MPS)",
+  "version": "0.1.0",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ununp3ntium115/QuantumAgainstTheWall"
+  },
+  "files": [
+    "quantum_wall_bg.wasm",
+    "quantum_wall.js",
+    "quantum_wall.d.ts"
+  ],
+  "main": "quantum_wall.js",
+  "types": "quantum_wall.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ],
+  "keywords": [
+    "quantum",
+    "entropy",
+    "tensor-network",
+    "mps",
+    "wasm"
+  ]
+}

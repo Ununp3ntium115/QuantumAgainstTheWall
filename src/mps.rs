@@ -65,7 +65,7 @@ impl MPS {
         assert!(n_sites > 0, "MPS must have at least one site");
         assert!(bond_dim > 0, "Bond dimension must be positive");
 
-        let physical_dim = 2;
+        let physical_dim: usize = 2;
         let mut tensors = Vec::with_capacity(n_sites);
 
         for i in 0..n_sites {

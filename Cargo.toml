@@ -1,10 +1,10 @@
 [package]
-name = "quantum-against-the-wall"
+name = "quantum-wall"
 version = "0.1.0"
 edition = "2021"
 authors = ["QuantumAgainstTheWall Contributors"]
 description = "Quantum entropy computation at scale via tensor networks (MPS)"
-license = "MIT"
+license = "UNLICENSED"
 repository = "https://github.com/Ununp3ntium115/QuantumAgainstTheWall"
 keywords = ["quantum", "entropy", "tensor-network", "mps", "wasm"]
 categories = ["science", "mathematics", "wasm"]
@@ -30,6 +30,9 @@ ndarray-linalg = { version = "0.16", features = ["openblas-system"], optional = 
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
 
 [profile.release]
 opt-level = 3

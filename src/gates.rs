@@ -5,7 +5,7 @@
 //! require SVD truncation to maintain bounded bond dimension.
 
 use crate::mps::MPS;
-use ndarray::{s, Array2, Array3, Array4};
+use ndarray::{Array2, Array3, Array4};
 use num_complex::Complex64;
 
 /// Standard quantum gates
@@ -289,92 +289,99 @@ pub fn apply_two_gate(mps: &mut MPS, site: usize, gate: &Array2<Complex64>) {
     assert!(gate.dim() == (4, 4), "Two-qubit gate must be 4x4");
 
     let bond_dim = mps.bond_dim();
-    let tensors = mps.tensors_mut();
 
-    let (d_left, _, d_mid) = tensors[site].dim();
-    let (_, _, d_right) = tensors[site + 1].dim();
+    // Get dimensions and compute new tensors
+    let (new_a, new_b, singular_values) = {
+        let tensors = mps.tensors();
 
-    // Contract: theta[l, p1, p2, r] = Σ_m A[l,p1,m] * B[m,p2,r]
-    let mut theta = Array4::<Complex64>::zeros((d_left, 2, 2, d_right));
-    for l in 0..d_left {
-        for p1 in 0..2 {
-            for p2 in 0..2 {
-                for r in 0..d_right {
-                    let mut sum = Complex64::new(0.0, 0.0);
-                    for m in 0..d_mid {
-                        sum += tensors[site][[l, p1, m]] * tensors[site + 1][[m, p2, r]];
-                    }
-                    theta[[l, p1, p2, r]] = sum;
-                }
-            }
-        }
-    }
+        let (d_left, _, d_mid) = tensors[site].dim();
+        let (_, _, d_right) = tensors[site + 1].dim();
 
-    // Apply gate: theta'[l, p1', p2', r] = Σ_{p1,p2} gate[p1'*2+p2', p1*2+p2] * theta[l,p1,p2,r]
-    let mut theta_new = Array4::<Complex64>::zeros((d_left, 2, 2, d_right));
-    for l in 0..d_left {
-        for p1_new in 0..2 {
-            for p2_new in 0..2 {
-                for r in 0..d_right {
-                    let mut sum = Complex64::new(0.0, 0.0);
-                    for p1 in 0..2 {
-                        for p2 in 0..2 {
-                            let idx_new = p1_new * 2 + p2_new;
-                            let idx_old = p1 * 2 + p2;
-                            sum += gate[[idx_new, idx_old]] * theta[[l, p1, p2, r]];
+        // Contract: theta[l, p1, p2, r] = Σ_m A[l,p1,m] * B[m,p2,r]
+        let mut theta = Array4::<Complex64>::zeros((d_left, 2, 2, d_right));
+        for l in 0..d_left {
+            for p1 in 0..2 {
+                for p2 in 0..2 {
+                    for r in 0..d_right {
+                        let mut sum = Complex64::new(0.0, 0.0);
+                        for m in 0..d_mid {
+                            sum += tensors[site][[l, p1, m]] * tensors[site + 1][[m, p2, r]];
                         }
+                        theta[[l, p1, p2, r]] = sum;
                     }
-                    theta_new[[l, p1_new, p2_new, r]] = sum;
                 }
             }
         }
-    }
 
-    // Reshape for SVD: (d_left * 2, 2 * d_right)
-    let m_rows = d_left * 2;
-    let m_cols = 2 * d_right;
+        // Apply gate: theta'[l, p1', p2', r] = Σ_{p1,p2} gate[p1'*2+p2', p1*2+p2] * theta[l,p1,p2,r]
+        let mut theta_new = Array4::<Complex64>::zeros((d_left, 2, 2, d_right));
+        for l in 0..d_left {
+            for p1_new in 0..2 {
+                for p2_new in 0..2 {
+                    for r in 0..d_right {
+                        let mut sum = Complex64::new(0.0, 0.0);
+                        for p1 in 0..2 {
+                            for p2 in 0..2 {
+                                let idx_new = p1_new * 2 + p2_new;
+                                let idx_old = p1 * 2 + p2;
+                                sum += gate[[idx_new, idx_old]] * theta[[l, p1, p2, r]];
+                            }
+                        }
+                        theta_new[[l, p1_new, p2_new, r]] = sum;
+                    }
+                }
+            }
+        }
 
-    let mut matrix = Array2::<Complex64>::zeros((m_rows, m_cols));
-    for l in 0..d_left {
-        for p1 in 0..2 {
+        // Reshape for SVD: (d_left * 2, 2 * d_right)
+        let m_rows = d_left * 2;
+        let m_cols = 2 * d_right;
+
+        let mut matrix = Array2::<Complex64>::zeros((m_rows, m_cols));
+        for l in 0..d_left {
+            for p1 in 0..2 {
+                for p2 in 0..2 {
+                    for r in 0..d_right {
+                        let row = l * 2 + p1;
+                        let col = p2 * d_right + r;
+                        matrix[[row, col]] = theta_new[[l, p1, p2, r]];
+                    }
+                }
+            }
+        }
+
+        // Simplified SVD via power iteration (production code should use proper LAPACK SVD)
+        let (u, s, vt) = simple_svd(&matrix, bond_dim);
+
+        // Reconstruct tensors
+        let new_bond = s.len();
+
+        // A[l, p1, m] = U[l*2+p1, m]
+        let mut new_a = Array3::<Complex64>::zeros((d_left, 2, new_bond));
+        for l in 0..d_left {
+            for p1 in 0..2 {
+                for m in 0..new_bond {
+                    new_a[[l, p1, m]] = u[[l * 2 + p1, m]];
+                }
+            }
+        }
+
+        // B[m, p2, r] = S[m] * Vt[m, p2*d_right+r]
+        let mut new_b = Array3::<Complex64>::zeros((new_bond, 2, d_right));
+        for m in 0..new_bond {
             for p2 in 0..2 {
                 for r in 0..d_right {
-                    let row = l * 2 + p1;
-                    let col = p2 * d_right + r;
-                    matrix[[row, col]] = theta_new[[l, p1, p2, r]];
+                    new_b[[m, p2, r]] = Complex64::new(s[m], 0.0) * vt[[m, p2 * d_right + r]];
                 }
             }
         }
-    }
 
-    // Simplified SVD via power iteration (production code should use proper LAPACK SVD)
-    let (u, s, vt) = simple_svd(&matrix, bond_dim);
+        (new_a, new_b, s)
+    };
 
-    // Update singular values
-    let new_bond = s.len();
-    mps.set_singular_values(site, s.clone());
-
-    // Reconstruct tensors
-    // A[l, p1, m] = U[l*2+p1, m]
-    let mut new_a = Array3::<Complex64>::zeros((d_left, 2, new_bond));
-    for l in 0..d_left {
-        for p1 in 0..2 {
-            for m in 0..new_bond {
-                new_a[[l, p1, m]] = u[[l * 2 + p1, m]];
-            }
-        }
-    }
-
-    // B[m, p2, r] = S[m] * Vt[m, p2*d_right+r]
-    let mut new_b = Array3::<Complex64>::zeros((new_bond, 2, d_right));
-    for m in 0..new_bond {
-        for p2 in 0..2 {
-            for r in 0..d_right {
-                new_b[[m, p2, r]] = Complex64::new(s[m], 0.0) * vt[[m, p2 * d_right + r]];
-            }
-        }
-    }
-
+    // Now update the MPS (no conflicting borrows)
+    mps.set_singular_values(site, singular_values);
+    let tensors = mps.tensors_mut();
     tensors[site] = new_a;
     tensors[site + 1] = new_b;
 
