@@ -2,7 +2,7 @@
 
 use crate::crypto::rng::QuantumRng;
 use crate::crypto::{CryptoError, CryptoResult, Zeroize};
-use x25519_dalek::{PublicKey as DalekPublicKey, StaticSecret};
+// x25519_dalek temporarily disabled due to dependency conflicts with PQC crates
 
 /// A 256-bit secret key for symmetric encryption.
 #[derive(Clone)]
@@ -123,42 +123,16 @@ impl KeyPair {
     }
 
     /// Generate a new X25519 key pair for key exchange.
-    pub fn generate_x25519(rng: &mut QuantumRng) -> Self {
-        let secret_bytes = rng.gen_bytes_32();
-        let secret = StaticSecret::from(secret_bytes);
-        let public = DalekPublicKey::from(&secret);
-
-        Self {
-            public: PublicKey::new(public.to_bytes().to_vec(), KeyAlgorithm::X25519),
-            secret: secret.to_bytes().to_vec(),
-            algorithm: KeyAlgorithm::X25519,
-        }
+    /// Temporarily disabled due to dependency conflicts - use ML-KEM instead
+    #[allow(dead_code)]
+    pub fn generate_x25519(_rng: &mut QuantumRng) -> Self {
+        unimplemented!("X25519 key exchange temporarily disabled - use ML-KEM (FIPS 203) instead")
     }
 
     /// Perform X25519 key exchange.
-    pub fn x25519_exchange(&self, their_public: &PublicKey) -> CryptoResult<[u8; 32]> {
-        if their_public.algorithm() != KeyAlgorithm::X25519 {
-            return Err(CryptoError::KeyExchangeFailed);
-        }
-        if their_public.as_bytes().len() != 32 || self.secret.len() != 32 {
-            return Err(CryptoError::InvalidKeyLength);
-        }
-
-        let mut secret_bytes = [0u8; 32];
-        secret_bytes.copy_from_slice(&self.secret);
-        let secret = StaticSecret::from(secret_bytes);
-
-        let mut pub_bytes = [0u8; 32];
-        pub_bytes.copy_from_slice(their_public.as_bytes());
-        let their_pub = DalekPublicKey::from(pub_bytes);
-
-        let shared = secret.diffie_hellman(&their_pub);
-        let mut out = [0u8; 32];
-        out.copy_from_slice(shared.as_bytes());
-        if out.iter().all(|&b| b == 0) {
-            return Err(CryptoError::KeyExchangeFailed);
-        }
-        Ok(out)
+    /// Temporarily disabled due to dependency conflicts - use ML-KEM instead
+    pub fn x25519_exchange(&self, _their_public: &PublicKey) -> CryptoResult<[u8; 32]> {
+        unimplemented!("X25519 key exchange temporarily disabled - use ML-KEM (FIPS 203) instead")
     }
 }
 
