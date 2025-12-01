@@ -72,7 +72,27 @@ pub struct MlKemPublicKey {
 }
 
 impl MlKemPublicKey {
-    /// Create from raw bytes
+    /// Constructs an `MlKemPublicKey` from raw key bytes, validating the length for the specified security level.
+    ///
+    /// The function checks that `bytes` has the exact length required by `level`:
+    /// - `Low`   → 800 bytes
+    /// - `Medium`→ 1184 bytes
+    /// - `High`  → 1568 bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(CryptoError::InvalidKeyLength)` if `bytes.len()` does not match the expected length for `level`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use crate::crypto::pqc::{MlKemPublicKey, MlKemSecurityLevel};
+    /// use crate::crypto::error::CryptoError;
+    ///
+    /// let raw = vec![0u8; 1184];
+    /// let pk = MlKemPublicKey::from_bytes(MlKemSecurityLevel::Medium, &raw).unwrap();
+    /// assert_eq!(pk.as_bytes().len(), 1184);
+    /// ```
     pub fn from_bytes(level: MlKemSecurityLevel, bytes: &[u8]) -> CryptoResult<Self> {
         let expected_len = match level {
             MlKemSecurityLevel::Low => 800,     // ML-KEM-512
@@ -90,14 +110,34 @@ impl MlKemPublicKey {
         })
     }
 
-    /// Get raw bytes
+    /// Returns a reference to the underlying key bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let vk = MlDsaVerificationKey { level: MlDsaSecurityLevel::Medium, key_bytes: vec![1,2,3] };
+    /// let bytes = vk.as_bytes();
+    /// assert_eq!(bytes, &[1,2,3]);
+    /// ```
     pub fn as_bytes(&self) -> &[u8] {
         &self.key_bytes
     }
 
-    /// Encapsulate a shared secret
+    /// Encapsulates a 32-byte shared secret for this public key and produces a corresponding ciphertext.
     ///
-    /// Returns (ciphertext, shared_secret)
+    /// Returns a tuple `(ciphertext, shared_secret)`. `ciphertext` is a vector whose length depends on the key's
+    /// security level (Low: 768, Medium: 1088, High: 1568). `shared_secret` is a 32-byte value derived from the
+    /// public key and ephemeral randomness.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// // assume `pk` is an existing `MlKemPublicKey` and `rng` is a mutable `QuantumRng`
+    /// let (ct, ss) = pk.encapsulate(&mut rng).expect("encapsulation failed");
+    /// assert!(matches!(pk.level(), MlKemSecurityLevel::Low | MlKemSecurityLevel::Medium | MlKemSecurityLevel::High));
+    /// assert_eq!(ss.len(), 32);
+    /// assert!([768usize, 1088, 1568].contains(&ct.len()));
+    /// ```
     pub fn encapsulate(&self, rng: &mut QuantumRng) -> CryptoResult<(Vec<u8>, [u8; 32])> {
         // In production, use actual ml-kem crate
         // For now, implement a simplified version using our crypto primitives
@@ -132,7 +172,17 @@ impl MlKemPublicKey {
         Ok((ciphertext, shared_secret))
     }
 
-    /// Security level
+    /// The ML-KEM security level associated with this public key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crate::crypto::pqc::{MlKemPublicKey, MlKemSecurityLevel};
+    /// let pk = MlKemPublicKey::from_bytes(MlKemSecurityLevel::Low, &vec![0u8; 800]).unwrap();
+    /// assert_eq!(pk.level(), MlKemSecurityLevel::Low);
+    /// ```
+    ///
+    /// @returns The `MlKemSecurityLevel` for this public key.
     pub fn level(&self) -> MlKemSecurityLevel {
         self.level
     }
@@ -145,7 +195,21 @@ pub struct MlKemSecretKey {
 }
 
 impl MlKemSecretKey {
-    /// Create from raw bytes
+    /// Constructs an MlKemSecretKey from raw key bytes for the specified security level.
+    ///
+    /// The provided byte slice must match the expected secret key length for the level:
+    /// Low = 1632, Medium = 2400, High = 3168.
+    ///
+    /// # Errors
+    ///
+    /// Returns `CryptoError::InvalidKeyLength` if `bytes.len()` does not match the expected length.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let sk = MlKemSecretKey::from_bytes(MlKemSecurityLevel::Medium, &vec![0u8; 2400]).unwrap();
+    /// assert_eq!(sk.as_bytes().len(), 2400);
+    /// ```
     pub fn from_bytes(level: MlKemSecurityLevel, bytes: &[u8]) -> CryptoResult<Self> {
         let expected_len = match level {
             MlKemSecurityLevel::Low => 1632,    // ML-KEM-512
@@ -163,12 +227,40 @@ impl MlKemSecretKey {
         })
     }
 
-    /// Get raw bytes
+    /// Returns a reference to the underlying key bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let vk = MlDsaVerificationKey { level: MlDsaSecurityLevel::Medium, key_bytes: vec![1,2,3] };
+    /// let bytes = vk.as_bytes();
+    /// assert_eq!(bytes, &[1,2,3]);
+    /// ```
     pub fn as_bytes(&self) -> &[u8] {
         &self.key_bytes
     }
 
-    /// Decapsulate shared secret from ciphertext
+    /// Derives the 32-byte shared secret corresponding to a ciphertext using this secret key.
+    ///
+    /// This implementation is a simplified, deterministic derivation used by the module's tests and
+    /// examples: it concatenates the secret key bytes with the ciphertext and returns the SHA-256
+    /// digest of that concatenation.
+    ///
+    /// # Returns
+    ///
+    /// The 32-byte shared secret derived from the secret key and ciphertext.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use crate::crypto::pqc::{MlKemSecretKey, MlKemSecurityLevel};
+    ///
+    /// // Create a secret key from bytes sized for the Medium level (2400 bytes).
+    /// let sk = MlKemSecretKey::from_bytes(MlKemSecurityLevel::Medium, &vec![0u8; 2400]).unwrap();
+    /// let ciphertext = vec![1u8; 1088]; // size matching Medium level ciphertext in this module
+    /// let shared = sk.decapsulate(&ciphertext).unwrap();
+    /// assert_eq!(shared.len(), 32);
+    /// ```
     pub fn decapsulate(&self, ciphertext: &[u8]) -> CryptoResult<[u8; 32]> {
         use crate::crypto::kdf::hash_sha256;
 
@@ -182,6 +274,21 @@ impl MlKemSecretKey {
 }
 
 impl Drop for MlKemSecretKey {
+    /// Zeroizes secret key material when the key is dropped.
+    ///
+    /// The key's internal `key_bytes` buffer is overwritten with zeros during drop to reduce
+    /// the lifetime of sensitive material in memory.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// // When an MlKemSecretKey or MlDsaSigningKey goes out of scope, its key material is cleared.
+    /// use crate::crypto::pqc::{MlKemSecretKey, MlKemSecurityLevel};
+    ///
+    /// {
+    ///     let _sk = MlKemSecretKey { level: MlKemSecurityLevel::Low, key_bytes: vec![0xAA, 0xBB] };
+    /// } // `_sk` is dropped here and its `key_bytes` are zeroized
+    /// ```
     fn drop(&mut self) {
         self.key_bytes.zeroize();
     }
@@ -194,7 +301,21 @@ pub struct MlKemKeypair {
 }
 
 impl MlKemKeypair {
-    /// Generate a new keypair
+    /// Generates an ML-KEM keypair for the specified security level.
+    ///
+    /// The returned keypair's public and secret key material sizes depend on `level`:
+    /// - `Low`: public = 800 bytes, secret = 1632 bytes
+    /// - `Medium`: public = 1184 bytes, secret = 2400 bytes
+    /// - `High`: public = 1568 bytes, secret = 3168 bytes
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut rng = QuantumRng::new(); // example RNG constructor in this crate
+    /// let kp = MlKemKeypair::generate(MlKemSecurityLevel::Medium, &mut rng).unwrap();
+    /// assert_eq!(kp.public_key().as_bytes().len(), 1184);
+    /// assert_eq!(kp.secret_key().as_bytes().len(), 2400);
+    /// ```
     pub fn generate(level: MlKemSecurityLevel, rng: &mut QuantumRng) -> CryptoResult<Self> {
         use crate::crypto::kdf::hash_sha256;
 
@@ -238,17 +359,54 @@ impl MlKemKeypair {
         })
     }
 
-    /// Get public key
+    /// Accesses the keypair's ML-KEM public key.
+    ///
+    /// Returns a reference to the public ML-KEM key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut rng = QuantumRng::new(); // assumed in scope for examples/tests
+    /// let kp = MlKemKeypair::generate(MlKemSecurityLevel::Medium, &mut rng).unwrap();
+    /// let pk = kp.public_key();
+    /// assert_eq!(pk.level(), MlKemSecurityLevel::Medium);
+    /// ```
     pub fn public_key(&self) -> &MlKemPublicKey {
         &self.pub_key
     }
 
-    /// Get secret key
+    /// Accesses the keypair's ML-KEM secret key.
+    ///
+    /// # Returns
+    ///
+    /// `&MlKemSecretKey` reference to the secret key.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let kp = /* an existing MlKemKeypair */ todo!();
+    /// let sk: &MlKemSecretKey = kp.secret_key();
+    /// let _bytes = sk.as_bytes();
+    /// ```
     pub fn secret_key(&self) -> &MlKemSecretKey {
         &self.sec_key
     }
 
-    /// Decapsulate using secret key
+    /// Derives the 32-byte shared secret from a KEM ciphertext using this keypair's secret key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// // `keypair` is a previously-generated `MlKemKeypair`.
+    /// // `ciphertext` should be a ciphertext produced by the corresponding public key.
+    /// let ciphertext = vec![0u8; 1088]; // example ciphertext length (medium level)
+    /// let shared = keypair.decapsulate(&ciphertext).unwrap();
+    /// assert_eq!(shared.len(), 32);
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// `[u8; 32]` containing the derived shared secret on success.
     pub fn decapsulate(&self, ciphertext: &[u8]) -> CryptoResult<[u8; 32]> {
         self.sec_key.decapsulate(ciphertext)
     }
@@ -261,7 +419,31 @@ pub struct MlDsaSigningKey {
 }
 
 impl MlDsaSigningKey {
-    /// Generate a new signing key
+    /// Generates a new ML-DSA signing key for the specified security level.
+    ///
+    /// The generated private key length depends on `level`:
+    /// - `Low`: 2560 bytes (ML-DSA-44)
+    /// - `Medium`: 4032 bytes (ML-DSA-65)
+    /// - `High`: 4896 bytes (ML-DSA-87)
+    ///
+    /// # Parameters
+    /// - `level`: Desired ML-DSA security level determining key size.
+    /// - `rng`: Quantum-capable RNG used to derive key material.
+    ///
+    /// # Returns
+    /// A `CryptoResult` containing the constructed `MlDsaSigningKey` on success.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use crate::crypto::pqc::{MlDsaSigningKey, MlDsaSecurityLevel};
+    /// use crate::rng::QuantumRng;
+    ///
+    /// let mut rng = QuantumRng::from_system();
+    /// let sk = MlDsaSigningKey::generate(MlDsaSecurityLevel::Medium, &mut rng).unwrap();
+    /// let vk = sk.verification_key();
+    /// assert_eq!(vk.as_bytes().len(), 1952);
+    /// ```
     pub fn generate(level: MlDsaSecurityLevel, rng: &mut QuantumRng) -> CryptoResult<Self> {
         use crate::crypto::kdf::hash_sha256;
 
@@ -285,7 +467,25 @@ impl MlDsaSigningKey {
         Ok(Self { level, key_bytes })
     }
 
-    /// Sign a message
+    /// Produces a ML-DSA-style signature for a message using this signing key.
+    ///
+    /// The returned signature embeds a 32-byte verification component at the start (SHA-256 of the verification
+    /// key, the message, and the ASCII tag "sig_check"). The total signature length depends on the key's
+    /// security level: Low = 2420 bytes, Medium = 3309 bytes, High = 4627 bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// // Assume `sk` is an existing `MlDsaSigningKey` and `rng` is a `QuantumRng`.
+    /// let message = b"example message";
+    /// let signature = sk.sign(message, &mut rng).unwrap();
+    /// let expected_len = match sk.level {
+    ///     MlDsaSecurityLevel::Low => 2420,
+    ///     MlDsaSecurityLevel::Medium => 3309,
+    ///     MlDsaSecurityLevel::High => 4627,
+    /// };
+    /// assert_eq!(signature.len(), expected_len);
+    /// ```
     pub fn sign(&self, message: &[u8], rng: &mut QuantumRng) -> CryptoResult<Vec<u8>> {
         use crate::crypto::kdf::hash_sha256;
 
@@ -320,7 +520,21 @@ impl MlDsaSigningKey {
         Ok(signature)
     }
 
-    /// Get verification key
+    /// Derives the ML-DSA verification key corresponding to this signing key.
+    ///
+    /// The returned `MlDsaVerificationKey` is deterministically derived from the signing
+    /// key material and the security level; its byte length depends on `self.level`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crate::crypto::pqc::{MlDsaSigningKey, MlDsaSecurityLevel};
+    /// # use crate::crypto::rng::QuantumRng;
+    /// let mut rng = QuantumRng::new();
+    /// let sk = MlDsaSigningKey::generate(MlDsaSecurityLevel::Medium, &mut rng).unwrap();
+    /// let vk = sk.verification_key();
+    /// assert_eq!(vk.as_bytes().len(), 1952);
+    /// ```
     pub fn verification_key(&self) -> MlDsaVerificationKey {
         use crate::crypto::kdf::hash_sha256;
 
@@ -346,6 +560,21 @@ impl MlDsaSigningKey {
 }
 
 impl Drop for MlDsaSigningKey {
+    /// Zeroizes secret key material when the key is dropped.
+    ///
+    /// The key's internal `key_bytes` buffer is overwritten with zeros during drop to reduce
+    /// the lifetime of sensitive material in memory.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// // When an MlKemSecretKey or MlDsaSigningKey goes out of scope, its key material is cleared.
+    /// use crate::crypto::pqc::{MlKemSecretKey, MlKemSecurityLevel};
+    ///
+    /// {
+    ///     let _sk = MlKemSecretKey { level: MlKemSecurityLevel::Low, key_bytes: vec![0xAA, 0xBB] };
+    /// } // `_sk` is dropped here and its `key_bytes` are zeroized
+    /// ```
     fn drop(&mut self) {
         self.key_bytes.zeroize();
     }
@@ -358,7 +587,36 @@ pub struct MlDsaVerificationKey {
 }
 
 impl MlDsaVerificationKey {
-    /// Verify a signature
+    /// Verifies an ML-DSA signature for a message using this verification key.
+    ///
+    /// This simplified verifier checks that the signature has the expected length for the
+    /// key's security level and contains a 32-byte SHA-256-derived component computed as
+    /// SHA256(vk || message || "sig_check"). If such a 32-byte window is present the
+    /// signature is considered valid.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the signature is valid for `message` and this verification key, `false` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use crate::crypto::kdf::hash_sha256;
+    /// use crate::crypto::pqc::{MlDsaVerificationKey, MlDsaSecurityLevel};
+    ///
+    /// let level = MlDsaSecurityLevel::Medium;
+    /// let vk_size = 1952; // verification key size for Medium in this implementation
+    /// let vk = MlDsaVerificationKey { level, key_bytes: vec![0u8; vk_size] };
+    ///
+    /// let message = b"example";
+    /// let expected_component = hash_sha256(&[&vk.key_bytes[..], message, b"sig_check"].concat());
+    ///
+    /// // Build a signature of the expected length that contains the expected component at start
+    /// let mut signature = vec![0u8; 3309]; // expected signature length for Medium
+    /// signature[..32].copy_from_slice(&expected_component);
+    ///
+    /// assert!(vk.verify(message, &signature));
+    /// ```
     pub fn verify(&self, message: &[u8], signature: &[u8]) -> bool {
         use crate::crypto::kdf::hash_sha256;
 
@@ -389,7 +647,15 @@ impl MlDsaVerificationKey {
         false
     }
 
-    /// Get raw bytes
+    /// Returns a reference to the underlying key bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let vk = MlDsaVerificationKey { level: MlDsaSecurityLevel::Medium, key_bytes: vec![1,2,3] };
+    /// let bytes = vk.as_bytes();
+    /// assert_eq!(bytes, &[1,2,3]);
+    /// ```
     pub fn as_bytes(&self) -> &[u8] {
         &self.key_bytes
     }

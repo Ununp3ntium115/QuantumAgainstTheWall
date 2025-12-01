@@ -8,6 +8,17 @@
 
 use quantum_wall::{MPS, crypto::*};
 
+/// Demonstrates end-to-end post-quantum cryptography workflows using QuantumWall.
+///
+/// Shows ML-KEM key generation, encapsulation and decapsulation; ML-DSA key generation, signing and verification;
+/// prints security-level comparisons and integration notes while using a QuantumRng sourced from an MPS entropy device.
+///
+/// # Examples
+///
+/// ```
+/// // Run the example program (prints status and results to stdout).
+/// main();
+/// ```
 fn main() {
     println!("=== QuantumWall Post-Quantum Cryptography ===\n");
 

@@ -63,6 +63,23 @@ pub struct FortressConfig {
 }
 
 impl Default for FortressConfig {
+    /// Creates a default FortressConfig tuned for the Standard security level.
+    ///
+    /// The returned configuration enables the full set of hardening techniques appropriate
+    /// for Standard: Argon2, Balloon, Bandwidth-hard, Multi-hash, Timelock, and Layered Encryption.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let cfg = FortressConfig::default();
+    /// assert_eq!(cfg.level, FortressLevel::Standard);
+    /// assert!(cfg.use_argon2);
+    /// assert!(cfg.use_balloon);
+    /// assert!(cfg.use_bandwidth);
+    /// assert!(cfg.use_multihash);
+    /// assert!(cfg.use_timelock);
+    /// assert!(cfg.use_layered_encryption);
+    /// ```
     fn default() -> Self {
         Self {
             level: FortressLevel::Standard,
@@ -77,7 +94,24 @@ impl Default for FortressConfig {
 }
 
 impl FortressConfig {
-    /// Maximum quantum pain configuration
+    /// Creates a configuration tuned for maximum hardness against quantum and specialized attacks.
+    ///
+    /// The returned `FortressConfig` is set to `FortressLevel::Quantum` and enables all available
+    /// hardening techniques: Argon2, Balloon, Bandwidth-hard, Multi-hash (Ultimate), Time-lock, and
+    /// layered encryption.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let cfg = FortressConfig::quantum_fortress();
+    /// assert_eq!(cfg.level, FortressLevel::Quantum);
+    /// assert!(cfg.use_argon2);
+    /// assert!(cfg.use_balloon);
+    /// assert!(cfg.use_bandwidth);
+    /// assert!(cfg.use_multihash);
+    /// assert!(cfg.use_timelock);
+    /// assert!(cfg.use_layered_encryption);
+    /// ```
     pub fn quantum_fortress() -> Self {
         Self {
             level: FortressLevel::Quantum,
@@ -90,7 +124,22 @@ impl FortressConfig {
         }
     }
 
-    /// Fast interactive configuration
+    /// Returns a configuration optimized for fast, interactive usage with minimal hardening.
+    ///
+    /// The configuration enables Argon2 and disables slower or resource-heavy stages (Balloon, Bandwidth, Multi-hash, Timelock, Layered Encryption) to prioritize responsiveness.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let cfg = FortressConfig::interactive();
+    /// assert_eq!(cfg.level, FortressLevel::Interactive);
+    /// assert!(cfg.use_argon2);
+    /// assert!(!cfg.use_balloon);
+    /// assert!(!cfg.use_bandwidth);
+    /// assert!(!cfg.use_multihash);
+    /// assert!(!cfg.use_timelock);
+    /// assert!(!cfg.use_layered_encryption);
+    /// ```
     pub fn interactive() -> Self {
         Self {
             level: FortressLevel::Interactive,
@@ -112,6 +161,21 @@ impl FortressConfig {
         }
     }
 
+    /// Selects the BalloonParams preset appropriate for this configuration's security level.
+    ///
+    /// Maps each FortressLevel to the corresponding BalloonParams preset:
+    /// - `Interactive` → `BalloonParams::interactive()`
+    /// - `Standard` → `BalloonParams::moderate()`
+    /// - `High` → `BalloonParams::high_security()`
+    /// - `Quantum` → `BalloonParams::quantum_fortress()`
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// let cfg = FortressConfig::standard();
+    /// let params = cfg.balloon_params();
+    /// // `params` is tuned for the Standard level.
+    /// ```
     fn balloon_params(&self) -> BalloonParams {
         match self.level {
             FortressLevel::Interactive => BalloonParams::interactive(),
@@ -121,6 +185,19 @@ impl FortressConfig {
         }
     }
 
+    /// Selects the bandwidth-hardening parameters that correspond to the current fortress security level.
+    ///
+    /// Returns the `BandwidthParams` preset appropriate for `self.level`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let cfg = FortressConfig::interactive();
+    /// assert_eq!(cfg.bandwidth_params(), BandwidthParams::interactive());
+    ///
+    /// let cfg = FortressConfig::quantum();
+    /// assert_eq!(cfg.bandwidth_params(), BandwidthParams::quantum_fortress());
+    /// ```
     fn bandwidth_params(&self) -> BandwidthParams {
         match self.level {
             FortressLevel::Interactive => BandwidthParams::interactive(),
@@ -130,6 +207,22 @@ impl FortressConfig {
         }
     }
 
+    /// Selects the multi-hash mode appropriate for the configured fortress level.
+    ///
+    /// # Returns
+    ///
+    /// The `MultiHashMode` that corresponds to `self.level`:
+    /// - `Xor` for `Interactive`
+    /// - `Cascade` for `Standard`
+    /// - `Nested` for `High`
+    /// - `Ultimate` for `Quantum`
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let cfg = FortressConfig::default();
+    /// assert_eq!(cfg.multihash_mode(), MultiHashMode::Cascade);
+    /// ```
     fn multihash_mode(&self) -> MultiHashMode {
         match self.level {
             FortressLevel::Interactive => MultiHashMode::Xor,        // Fast
@@ -139,6 +232,17 @@ impl FortressConfig {
         }
     }
 
+    /// Selects the recommended number of sequential timelock iterations for this fortress level.
+    ///
+    /// # Returns
+    /// The iteration count used by the timelock stage for the current `FortressLevel`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let cfg = FortressConfig::quantum_fortress();
+    /// assert_eq!(cfg.timelock_iterations(), 100_000_000);
+    /// ```
     fn timelock_iterations(&self) -> u64 {
         match self.level {
             FortressLevel::Interactive => 100_000,
@@ -160,16 +264,30 @@ pub struct FortressKey {
 }
 
 impl FortressKey {
-    /// Derive keys from password using fortress hardening (Enhanced)
+    /// Derives a FortressKey from a password and salt using the configured hardening stages.
     ///
-    /// Security layers:
-    /// 1. Argon2id - Memory-hard (1 GB max)
-    /// 2. Balloon - Provably space-hard
-    /// 3. Bandwidth-hard - ASIC resistance via bandwidth bottleneck (NEW)
-    /// 4. Multi-hash - 4 independent hash functions for 2^1024 security (NEW)
-    /// 5. Time-lock - Sequential work that cannot be parallelized
+    /// Hardening stages are applied in sequence when enabled in `config`: Argon2id, Balloon, Bandwidth‑hard, Multi‑hash, and Time‑lock. Intermediate material is securely zeroized before returning.
     ///
-    /// Result: Mathematically and physically impossible to break
+    /// # Parameters
+    ///
+    /// - `password`: the secret passphrase or input material used to derive keys.
+    /// - `salt`: per‑derivation salt (expected to be the Fortress 32‑byte salt used for sealing).
+    /// - `config`: configuration that controls which hardening stages are applied and their parameters.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(FortressKey)` containing three 32‑byte keys: `primary`, `secondary`, and `auth`; `Err` on failure during any hardening stage or hashing operation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let config = FortressConfig::interactive();
+    /// let salt = [0u8; 32];
+    /// let key = FortressKey::derive(b"correct horse battery staple", &salt, &config).unwrap();
+    /// assert_eq!(key.primary_key().len(), 32);
+    /// assert_eq!(key.secondary_key().len(), 32);
+    /// assert_eq!(key.auth_key().len(), 32);
+    /// ```
     pub fn derive(
         password: &[u8],
         salt: &[u8],
@@ -422,25 +540,96 @@ impl QuantumFortress {
         self
     }
 
-    /// Enable/disable Balloon hashing
+    /// Enable or disable Balloon hashing in the fortress configuration.
+    ///
+    /// `enabled` controls whether the Balloon provable-space hardening stage is used
+    /// during key derivation.
+    ///
+    /// # Arguments
+    ///
+    /// * `enabled` - `true` to enable Balloon hashing, `false` to disable it.
+    ///
+    /// # Returns
+    ///
+    /// The updated `QuantumFortress` builder.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let fortress = QuantumFortress::new().balloon(true);
+    /// ```
     pub fn balloon(mut self, enabled: bool) -> Self {
         self.config.use_balloon = enabled;
         self
     }
 
-    /// Enable/disable Bandwidth-hard function (NEW)
+    /// Sets whether the bandwidth-hard stage is enabled in the fortress configuration.
+    ///
+    /// This controls inclusion of the bandwidth-hard (ASIC-resistant) stage during password
+    /// key derivation when sealing/unsealing data.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let qf = QuantumFortress::new().bandwidth(true);
+    /// // chaining still works:
+    /// let qf = QuantumFortress::new().bandwidth(false).argon2(true);
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// The updated `QuantumFortress` builder.
     pub fn bandwidth(mut self, enabled: bool) -> Self {
         self.config.use_bandwidth = enabled;
         self
     }
 
-    /// Enable/disable Multi-hash (NEW)
+    /// Configure whether Multi-hash hardening is enabled on the builder.
+    
+    ///
+    
+    /// When enabled, subsequent sealing operations will include the Multi-hash stage in key derivation.
+    
+    ///
+    
+    /// # Parameters
+    
+    ///
+    
+    /// - `enabled`: set to `true` to enable Multi-hash, `false` to disable it.
+    
+    ///
+    
+    /// # Returns
+    
+    ///
+    
+    /// The updated `QuantumFortress` builder with the new Multi-hash setting.
+    
+    ///
+    
+    /// # Examples
+    
+    ///
+    
+    /// ```
+    
+    /// let fortress = QuantumFortress::new().multihash(true);
+    
+    /// ```
     pub fn multihash(mut self, enabled: bool) -> Self {
         self.config.use_multihash = enabled;
         self
     }
 
-    /// Enable/disable time-lock
+    /// Enable or disable the timelock hardening stage used during key derivation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let fortress = QuantumFortress::new().timelock(true);
+    /// let fortress_disabled = QuantumFortress::new().timelock(false);
+    /// ```
     pub fn timelock(mut self, enabled: bool) -> Self {
         self.config.use_timelock = enabled;
         self
@@ -452,7 +641,40 @@ impl QuantumFortress {
         self
     }
 
-    /// Encrypt data with the fortress
+    /// Seals (encrypts) plaintext with a password and returns a FortressData package.
+    ///
+    /// The function derives per-config cryptographic keys from `password` and a
+    /// randomly generated salt (via `rng`), encrypts `plaintext` into an inner
+    /// encrypted layer, and optionally wraps that inner layer in an outer
+    /// encrypted layer when layered encryption is enabled in the fortress
+    /// configuration.
+    ///
+    /// The returned `FortressData` contains the salt, configured fortress level,
+    /// a flags byte describing which hardening stages were used, the inner
+    /// encrypted layer, and an optional outer encrypted layer when layering is
+    /// enabled.
+    ///
+    /// Flags bit assignments (in `FortressData.flags`):
+    /// - 0x01: Argon2 enabled
+    /// - 0x02: Balloon enabled
+    /// - 0x04: Timelock enabled
+    /// - 0x08: Layered encryption enabled
+    /// - 0x10: Bandwidth-hard enabled
+    /// - 0x20: Multi-hash enabled
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use crypto::fortress::{QuantumFortress, QuantumRng};
+    ///
+    /// let mut rng = QuantumRng::new(); // test/example RNG
+    /// let fortress = QuantumFortress::new();
+    /// let password = b"correct horse battery staple";
+    /// let plaintext = b"secret data";
+    ///
+    /// let sealed = fortress.seal(password, plaintext, &mut rng).unwrap();
+    /// assert_eq!(sealed.level, fortress.config.level as u8);
+    /// ```
     pub fn seal(
         &self,
         password: &[u8],
@@ -520,7 +742,29 @@ impl QuantumFortress {
         })
     }
 
-    /// Decrypt data from the fortress
+    /// Decrypts the FortressData using the provided password and returns the plaintext.
+    ///
+    /// Reconstructs the key-derivation configuration from the data's flags, derives the necessary
+    /// keys from the provided password and the stored salt, and performs any configured layered
+    /// decryption and authentication checks.
+    ///
+    /// # Parameters
+    ///
+    /// - `password`: password bytes used to derive decryption keys.
+    /// - `data`: the serialized FortressData to decrypt; its flags control which hardening stages were used.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(plaintext)` with the decrypted bytes on success, `Err` if key derivation, decryption, or
+    /// authentication fails (for example due to a wrong password or malformed input).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// // Assuming `fortress` is a configured QuantumFortress and `data` is the result of `seal`.
+    /// let plaintext = fortress.unseal(b"correct horse battery staple", &data).unwrap();
+    /// assert!(!plaintext.is_empty());
+    /// ```
     pub fn unseal(&self, password: &[u8], data: &FortressData) -> CryptoResult<Vec<u8>> {
         // Reconstruct config from flags
         let mut config = self.config.clone();
@@ -548,7 +792,22 @@ impl QuantumFortress {
         decrypt(&primary_key, &inner_data, Some(keys.auth_key()))
     }
 
-    /// Estimated time to derive key in seconds
+    /// Estimate the total time required to derive the fortress key based on the current configuration.
+    ///
+    /// The estimate sums modeled durations for each enabled hardening stage (Argon2, Balloon, Bandwidth-hard,
+    /// Multi-hash, and Timelock) according to the configured FortressLevel and stage parameters.
+    ///
+    /// # Returns
+    ///
+    /// The estimated duration in seconds as an `f64`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let fortress = QuantumFortress::new();
+    /// let secs = fortress.estimated_key_time();
+    /// assert!(secs >= 0.0);
+    /// ```
     pub fn estimated_key_time(&self) -> f64 {
         let mut time = 0.0;
 
@@ -599,7 +858,23 @@ impl QuantumFortress {
         time
     }
 
-    /// Memory required for key derivation in bytes
+    /// Computes the maximum memory required (in bytes) by the enabled key-derivation stages.
+    ///
+    /// Considers Argon2, Balloon, and Bandwidth hardening stages and returns the largest single-stage
+    /// memory requirement among those enabled in the current configuration.
+    ///
+    /// # Returns
+    ///
+    /// `usize` containing the maximum memory in bytes required by any enabled derivation stage.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let fortress = QuantumFortress::interactive();
+    /// let mem_bytes = fortress.memory_required();
+    /// // memory requirement is non-zero for configurations that enable Argon2, Balloon, or Bandwidth
+    /// assert!(mem_bytes >= 0);
+    /// ```
     pub fn memory_required(&self) -> usize {
         let mut mem = 0;
 
@@ -786,6 +1061,25 @@ mod tests {
         assert_eq!(plaintext.to_vec(), unsealed);
     }
 
+    /// Verifies that enabling bandwidth-hard and multi-hash increases estimated key derivation time
+    /// while leaving peak memory requirements unchanged for the same fortress level.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let standard = QuantumFortress::new()
+    ///     .level(FortressLevel::Standard)
+    ///     .bandwidth(false)
+    ///     .multihash(false);
+    ///
+    /// let enhanced = QuantumFortress::new()
+    ///     .level(FortressLevel::Standard)
+    ///     .bandwidth(true)
+    ///     .multihash(true);
+    ///
+    /// assert!(enhanced.estimated_key_time() > standard.estimated_key_time());
+    /// assert_eq!(enhanced.memory_required(), standard.memory_required());
+    /// ```
     #[test]
     fn test_enhanced_estimates() {
         // Test that bandwidth and multihash affect estimates
