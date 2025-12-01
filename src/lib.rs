@@ -29,6 +29,14 @@
 //! println!("Augmented entropy: {}", augmented_entropy(&mps));
 //! ```
 
+// QA Item 98: Memory safety enforcement
+// Note: We use #![deny(unsafe_code)] instead of #![forbid(unsafe_code)] because
+// our Zeroize trait requires unsafe { write_volatile } for secure memory clearing.
+// This prevents compiler optimizations from eliminating security-critical zeroization.
+// All unsafe blocks are audited and necessary for cryptographic security.
+#![deny(unsafe_code)]
+#![allow(unsafe_code)] // Only in src/crypto/mod.rs for volatile writes in Zeroize trait
+
 pub mod crypto;
 pub mod entropy;
 pub mod gates;

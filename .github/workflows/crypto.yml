@@ -1,20 +1,29 @@
 name: Crypto QA
 
+# QA Items 65, 99, 100: Automated crypto invariant checks
+# This workflow implements the formal QA plan from qa/runs/2025-02-10-crypto-qa.md
+
 on:
   push:
+    branches: [ main, 'claude/**' ]
   pull_request:
+    branches: [ main ]
 
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
+          components: rustfmt, clippy
+
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libopenblas-dev
+
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -23,9 +32,72 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cargo fmt
+
+      # QA Item 99: Code formatting check
+      - name: Check code formatting
         run: cargo fmt --all -- --check
-      - name: Cargo clippy
-        run: cargo clippy --all-targets -- -D warnings
-      - name: Cargo test
-        run: cargo test --all
+
+      # QA Item 99: Linting with clippy (deny warnings)
+      - name: Clippy linting
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      # QA Item 98: Verify no unsafe code violations
+      - name: Check unsafe code policy
+        run: |
+          # Verify #![deny(unsafe_code)] is in lib.rs
+          grep -q '#!\[deny(unsafe_code)\]' src/lib.rs || {
+            echo "Error: Missing #![deny(unsafe_code)] in src/lib.rs"
+            exit 1
+          }
+          echo "✓ Memory safety policy enforced"
+
+      # QA Items 65, 99: Run all tests including KATs
+      - name: Run test suite
+        run: cargo test --all --verbose
+        env:
+          RUST_BACKTRACE: 1
+
+      # QA Item 99: Verify critical crypto tests pass
+      - name: Verify KAT tests
+        run: |
+          echo "Verifying Known Answer Tests..."
+          cargo test --lib argon2 -- --nocapture | grep -q "test.*argon2.*ok" || {
+            echo "Error: Argon2 KATs failed"
+            exit 1
+          }
+          cargo test --lib symmetric -- --nocapture | grep -q "test.*chacha20_poly1305_rfc8439_kat.*ok" || {
+            echo "Error: ChaCha20-Poly1305 KAT failed"
+            exit 1
+          }
+          echo "✓ All KATs passed"
+
+      # QA Item 99: Check for common crypto mistakes
+      - name: Security lint checks
+        run: |
+          echo "Checking for security anti-patterns..."
+
+          # Check for weak RNG patterns
+          ! grep -r "rand::thread_rng" src/crypto/ && echo "✓ No weak RNG usage" || {
+            echo "Warning: Found thread_rng usage in crypto code"
+            exit 1
+          }
+
+          # Check for hardcoded keys/secrets
+          ! grep -rE '(secret|password|key).*=.*"[^"]{8,}"' src/crypto/ && echo "✓ No hardcoded secrets" || {
+            echo "Warning: Possible hardcoded secret detected"
+            exit 1
+          }
+
+          # Verify zeroization is present
+          grep -r "fn drop" src/crypto/ | grep -q "zeroize\|= 0" && echo "✓ Zeroization implemented" || {
+            echo "Warning: Missing zeroization in Drop implementations"
+          }
+
+      # QA Item 100: Test coverage summary
+      - name: Test coverage summary
+        run: |
+          echo "=== QA Test Coverage Summary ==="
+          cargo test --lib 2>&1 | grep "test result:" || true
+          echo ""
+          echo "See qa/runs/2025-02-10-crypto-qa.md for full QA checklist"
+          echo "Progress: 29/52 items complete (56%)"

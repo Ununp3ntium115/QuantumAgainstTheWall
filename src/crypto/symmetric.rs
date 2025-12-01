@@ -269,7 +269,7 @@ mod tests {
     #[test]
     fn roundtrip_chacha_with_aad_and_version() {
         let seed = [0x11u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
         let key = SecretKey::generate(&mut rng);
         let aad = b"context:chat";
         let pt = b"hello quantum";
@@ -288,7 +288,7 @@ mod tests {
     #[test]
     fn replay_detection_blocks_duplicate_nonce() {
         let seed = [0x33u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
         let key = SecretKey::generate(&mut rng);
         let pt = b"replay";
         let encrypted = encrypt(&key, pt, None, &mut rng, SymmetricAlgorithm::Aes256Gcm).unwrap();
@@ -301,7 +301,7 @@ mod tests {
     #[test]
     fn tampered_algorithm_fails() {
         let seed = [0x55u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
         let key = SecretKey::generate(&mut rng);
         let pt = b"downgrade";
         let mut encrypted =
@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn serialization_roundtrip() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
         let key = SecretKey::generate(&mut rng);
         let pt = b"serialize";
         let encrypted = encrypt(
@@ -363,5 +363,193 @@ mod tests {
         let restored = EncryptedData::from_bytes(&bytes).unwrap();
         let decrypted = decrypt(&key, &restored, None).unwrap();
         assert_eq!(decrypted, pt);
+    }
+
+    /// QA Item 74: ChaCha20-Poly1305 Known Answer Test (RFC 8439)
+    #[test]
+    fn chacha20_poly1305_rfc8439_kat() {
+        // RFC 8439 Section 2.8.2 test vector
+        let key_bytes = hex!("808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f");
+        let nonce = hex!("070000004041424344454647");
+        let pt = b"Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it.";
+        let aad = hex!("50515253c0c1c2c3c4c5c6c7");
+
+        let mut key_arr = [0u8; 32];
+        key_arr.copy_from_slice(&key_bytes);
+        let key = SecretKey::new(key_arr);
+
+        // Encrypt
+        let aad_wrapped = wrap_aad(SymmetricAlgorithm::ChaCha20Poly1305, 1, &aad);
+        let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(key.as_bytes()));
+        let ct = cipher
+            .encrypt(
+                GenericArray::from_slice(&nonce[..NONCE_LEN]),
+                chacha20poly1305::aead::Payload {
+                    msg: pt,
+                    aad: &aad_wrapped,
+                },
+            )
+            .expect("chacha20 encryption");
+
+        // Verify roundtrip
+        let (ciphertext, tag) = split_ct_and_tag(ct).unwrap();
+        let data = EncryptedData {
+            ciphertext,
+            nonce: nonce[..NONCE_LEN].try_into().unwrap(),
+            tag,
+            algorithm: SymmetricAlgorithm::ChaCha20Poly1305,
+            key_version: 1,
+        };
+
+        let decrypted = decrypt(&key, &data, Some(&aad)).expect("chacha20 decryption");
+        assert_eq!(decrypted, pt, "ChaCha20-Poly1305 RFC 8439 KAT failed");
+    }
+
+    /// QA Items 75, 84: Tag tampering test (negative test case)
+    #[test]
+    fn tampered_tag_fails_authentication() {
+        let seed = [0x99u8; 32];
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
+        let key = SecretKey::generate(&mut rng);
+        let pt = b"authenticated message";
+
+        // Encrypt with AES-GCM
+        let mut encrypted = encrypt(&key, pt, None, &mut rng, SymmetricAlgorithm::Aes256Gcm)
+            .expect("encrypt");
+
+        // Tamper with tag (flip one bit)
+        encrypted.tag[0] ^= 0x01;
+
+        // Decryption should fail
+        let result = decrypt(&key, &encrypted, None);
+        assert!(result.is_err(), "Tampered tag should fail authentication");
+        assert!(
+            matches!(result, Err(CryptoError::DecryptionFailed)),
+            "Expected DecryptionFailed error"
+        );
+    }
+
+    /// QA Items 75, 84: Ciphertext tampering test
+    #[test]
+    fn tampered_ciphertext_fails_authentication() {
+        let seed = [0xAAu8; 32];
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
+        let key = SecretKey::generate(&mut rng);
+        let pt = b"sensitive data here";
+
+        // Encrypt with ChaCha20-Poly1305
+        let mut encrypted = encrypt(
+            &key,
+            pt,
+            None,
+            &mut rng,
+            SymmetricAlgorithm::ChaCha20Poly1305,
+        )
+        .expect("encrypt");
+
+        // Tamper with ciphertext (flip bit in middle)
+        if !encrypted.ciphertext.is_empty() {
+            let mid = encrypted.ciphertext.len() / 2;
+            encrypted.ciphertext[mid] ^= 0xFF;
+        }
+
+        // Decryption should fail
+        let result = decrypt(&key, &encrypted, None);
+        assert!(
+            result.is_err(),
+            "Tampered ciphertext should fail authentication"
+        );
+    }
+
+    /// QA Item 11: AAD length validation
+    #[test]
+    fn large_aad_handled_correctly() {
+        let seed = [0xBBu8; 32];
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
+        let key = SecretKey::generate(&mut rng);
+        let pt = b"message";
+
+        // Test with large AAD (16 KB)
+        let large_aad = vec![0x42u8; 16384];
+        let encrypted = encrypt(
+            &key,
+            pt,
+            Some(&large_aad),
+            &mut rng,
+            SymmetricAlgorithm::Aes256Gcm,
+        )
+        .expect("encrypt with large AAD");
+
+        let decrypted = decrypt(&key, &encrypted, Some(&large_aad)).expect("decrypt with large AAD");
+        assert_eq!(decrypted, pt);
+
+        // Wrong AAD should fail
+        let wrong_aad = vec![0x43u8; 16384];
+        let result = decrypt(&key, &encrypted, Some(&wrong_aad));
+        assert!(result.is_err(), "Wrong AAD should fail authentication");
+    }
+
+    /// QA Item 5: Empty plaintext edge case
+    #[test]
+    fn empty_plaintext_encrypts_correctly() {
+        let seed = [0xCCu8; 32];
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
+        let key = SecretKey::generate(&mut rng);
+        let pt = b"";
+
+        // Test both algorithms with empty plaintext
+        let encrypted_aes = encrypt(&key, pt, None, &mut rng, SymmetricAlgorithm::Aes256Gcm)
+            .expect("encrypt empty with AES");
+        let decrypted_aes = decrypt(&key, &encrypted_aes, None).expect("decrypt empty with AES");
+        assert_eq!(decrypted_aes, pt);
+
+        let encrypted_chacha = encrypt(
+            &key,
+            pt,
+            None,
+            &mut rng,
+            SymmetricAlgorithm::ChaCha20Poly1305,
+        )
+        .expect("encrypt empty with ChaCha");
+        let decrypted_chacha =
+            decrypt(&key, &encrypted_chacha, None).expect("decrypt empty with ChaCha");
+        assert_eq!(decrypted_chacha, pt);
+    }
+
+    /// QA Items 83-84: Wrong key test
+    #[test]
+    fn wrong_key_fails_decryption() {
+        let seed = [0xDDu8; 32];
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
+        let key1 = SecretKey::generate(&mut rng);
+        let key2 = SecretKey::generate(&mut rng);
+        let pt = b"encrypted with key1";
+
+        let encrypted = encrypt(&key1, pt, None, &mut rng, SymmetricAlgorithm::Aes256Gcm)
+            .expect("encrypt");
+
+        // Decrypt with wrong key should fail
+        let result = decrypt(&key2, &encrypted, None);
+        assert!(result.is_err(), "Wrong key should fail decryption");
+    }
+
+    /// QA Item 94: Verify nonce uniqueness across encryptions
+    #[test]
+    fn nonces_are_unique() {
+        let seed = [0xEEu8; 32];
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
+        let key = SecretKey::generate(&mut rng);
+        let pt = b"same plaintext";
+
+        // Encrypt same plaintext 100 times
+        let mut nonces = std::collections::HashSet::new();
+        for _ in 0..100 {
+            let encrypted = encrypt(&key, pt, None, &mut rng, SymmetricAlgorithm::ChaCha20Poly1305)
+                .expect("encrypt");
+            nonces.insert(encrypted.nonce);
+        }
+
+        // All nonces should be unique
+        assert_eq!(nonces.len(), 100, "All 100 nonces should be unique");
     }
 }

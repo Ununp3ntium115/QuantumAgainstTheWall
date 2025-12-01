@@ -202,6 +202,74 @@ impl EncryptionKey {
         let derived = derive_key(shared, context, b"encryption")?;
         Ok(Self::new(SecretKey::new(derived.as_bytes())))
     }
+
+    /// Get the current nonce counter value (QA Items 71, 87).
+    ///
+    /// Use this for serialization or auditing. The counter tracks how many
+    /// nonces have been generated with this key.
+    ///
+    /// **Security Note:** Monitor this value to enforce key rotation policies.
+    /// - AES-256-GCM: Rotate after 2³¹ nonces (2.1 billion)
+    /// - ChaCha20-Poly1305: Rotate after 2⁴⁷ nonces (140 trillion)
+    pub fn nonce_counter(&self) -> u64 {
+        self.nonce_counter
+    }
+
+    /// Create an encryption key with a specific nonce counter (QA Item 71).
+    ///
+    /// **Use case:** Deserializing a key from persistent storage.
+    ///
+    /// **Security Warning:**
+    /// - NEVER reuse a (key, nonce) pair - this catastrophically breaks AEAD security
+    /// - Only use this when restoring a previously saved counter value
+    /// - If in doubt, generate a fresh key instead
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Save state
+    /// let counter = key.nonce_counter();
+    /// save_to_disk(&key_bytes, counter);
+    ///
+    /// // Restore state
+    /// let key = EncryptionKey::from_key_and_counter(key_bytes, counter);
+    /// ```
+    pub fn from_key_and_counter(key: SecretKey, nonce_counter: u64) -> Self {
+        Self { key, nonce_counter }
+    }
+
+    /// Reset the nonce counter to zero (QA Item 87).
+    ///
+    /// **DANGER:** Only use this when rotating to a completely different key.
+    /// Resetting the counter with the same key material will cause nonce reuse,
+    /// leading to:
+    /// - Complete loss of confidentiality (plaintext recovery)
+    /// - Authentication key extraction
+    /// - Forgery attacks
+    ///
+    /// **Safe usage:**
+    /// ```ignore
+    /// // WRONG: Reset counter with same key
+    /// key.reset_nonce_counter(); // DANGEROUS!
+    ///
+    /// // RIGHT: Generate new key and counter resets automatically
+    /// key = EncryptionKey::generate(&mut rng); // Safe
+    /// ```
+    pub fn reset_nonce_counter(&mut self) {
+        self.nonce_counter = 0;
+    }
+
+    /// Check if key should be rotated based on nonce counter (QA Item 39, 87).
+    ///
+    /// Returns true if the nonce counter has reached unsafe levels for the
+    /// given algorithm. Conservative thresholds:
+    /// - AES-256-GCM: 2³¹ (50% of birthday bound)
+    /// - ChaCha20-Poly1305: 2⁴⁷ (no practical limit)
+    ///
+    /// For now, uses the more conservative AES-256-GCM limit.
+    pub fn should_rotate(&self) -> bool {
+        const MAX_AES_GCM_NONCES: u64 = 1u64 << 31; // 2^31
+        self.nonce_counter >= MAX_AES_GCM_NONCES
+    }
 }
 
 /// Supported key algorithms.
@@ -502,7 +570,7 @@ mod tests {
     #[test]
     fn test_secret_key_generation() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
         let key = SecretKey::generate(&mut rng);
         assert_eq!(key.as_bytes().len(), 32);
     }
@@ -511,7 +579,7 @@ mod tests {
     #[ignore = "X25519 temporarily disabled due to dependency conflicts - use ML-KEM instead"]
     fn test_x25519_key_exchange() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
 
         let alice = KeyPair::generate_x25519(&mut rng);
         let bob = KeyPair::generate_x25519(&mut rng);
@@ -525,7 +593,7 @@ mod tests {
     #[test]
     fn test_encryption_key_nonce() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
 
         let mut key = EncryptionKey::generate(&mut rng);
         let nonce1 = key.next_nonce(&mut rng);
@@ -533,5 +601,96 @@ mod tests {
 
         // Nonces should be different
         assert_ne!(nonce1, nonce2);
+    }
+
+    // QA Items 71, 87: Test nonce counter management
+    #[test]
+    fn test_nonce_counter_tracking() {
+        let seed = [0x42u8; 32];
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
+
+        let mut key = EncryptionKey::generate(&mut rng);
+        assert_eq!(key.nonce_counter(), 0);
+
+        // Generate nonces and verify counter increments
+        key.next_nonce(&mut rng);
+        assert_eq!(key.nonce_counter(), 1);
+
+        key.next_nonce(&mut rng);
+        assert_eq!(key.nonce_counter(), 2);
+    }
+
+    // QA Item 71: Test serialization/deserialization with counter
+    #[test]
+    fn test_key_serialization_with_counter() {
+        let seed = [0x42u8; 32];
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
+
+        let mut key1 = EncryptionKey::generate(&mut rng);
+
+        // Generate some nonces
+        for _ in 0..100 {
+            key1.next_nonce(&mut rng);
+        }
+
+        let counter = key1.nonce_counter();
+        assert_eq!(counter, 100);
+
+        // Simulate serialization/deserialization
+        let key_bytes = key1.key().as_bytes().clone();
+        let key2 = EncryptionKey::from_key_and_counter(
+            SecretKey::new(key_bytes),
+            counter
+        );
+
+        // Restored key should have same counter
+        assert_eq!(key2.nonce_counter(), 100);
+    }
+
+    // QA Item 87: Test reset nonce counter
+    #[test]
+    fn test_reset_nonce_counter() {
+        let seed = [0x42u8; 32];
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
+
+        let mut key = EncryptionKey::generate(&mut rng);
+
+        // Generate nonces
+        for _ in 0..50 {
+            key.next_nonce(&mut rng);
+        }
+        assert_eq!(key.nonce_counter(), 50);
+
+        // Reset counter
+        key.reset_nonce_counter();
+        assert_eq!(key.nonce_counter(), 0);
+    }
+
+    // QA Items 39, 87: Test should_rotate()
+    #[test]
+    fn test_should_rotate() {
+        let seed = [0x42u8; 32];
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
+
+        let key_bytes = rng.gen_bytes_32();
+        let key = EncryptionKey::from_key_and_counter(
+            SecretKey::new(key_bytes),
+            0
+        );
+        assert!(!key.should_rotate());
+
+        // Approach AES-GCM limit
+        let key_at_limit = EncryptionKey::from_key_and_counter(
+            SecretKey::new(key_bytes),
+            (1u64 << 31) - 1
+        );
+        assert!(!key_at_limit.should_rotate());
+
+        // At limit
+        let key_past_limit = EncryptionKey::from_key_and_counter(
+            SecretKey::new(key_bytes),
+            1u64 << 31
+        );
+        assert!(key_past_limit.should_rotate());
     }
 }
