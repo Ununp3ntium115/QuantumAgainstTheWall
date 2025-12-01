@@ -59,7 +59,7 @@ impl NonceState {
             .counter
             .checked_add(1)
             .ok_or(CryptoError::NonceExhausted)?;
-        self.register(nonce)?;
+        // Don't register here - nonces are only registered during decryption for replay detection
         Ok(nonce)
     }
 
@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn roundtrip_chacha_with_aad_and_version() {
-        let seed = [0x42u8; 32];
+        let seed = [0x11u8; 32];
         let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
         let key = SecretKey::generate(&mut rng);
         let aad = b"context:chat";

@@ -402,8 +402,7 @@ mod tests {
 
     #[test]
     fn test_mlkem_keypair_generation() {
-        let mps = MPS::new(10, 4);
-        let mut rng = QuantumRng::from_mps(&mps).unwrap();
+        let mut rng = QuantumRng::new().unwrap();
 
         let keypair = MlKemKeypair::generate(MlKemSecurityLevel::Medium, &mut rng).unwrap();
 
@@ -414,8 +413,7 @@ mod tests {
 
     #[test]
     fn test_mlkem_encapsulation() {
-        let mps = MPS::new(10, 4);
-        let mut rng = QuantumRng::from_mps(&mps).unwrap();
+        let mut rng = QuantumRng::new().unwrap();
 
         let keypair = MlKemKeypair::generate(MlKemSecurityLevel::Medium, &mut rng).unwrap();
 
@@ -437,8 +435,7 @@ mod tests {
 
     #[test]
     fn test_mldsa_signature() {
-        let mps = MPS::new(10, 4);
-        let mut rng = QuantumRng::from_mps(&mps).unwrap();
+        let mut rng = QuantumRng::new().unwrap();
 
         let signing_key = MlDsaSigningKey::generate(MlDsaSecurityLevel::Medium, &mut rng).unwrap();
         let verification_key = signing_key.verification_key();
@@ -458,8 +455,7 @@ mod tests {
 
     #[test]
     fn test_mlkem_security_levels() {
-        let mps = MPS::new(10, 4);
-        let mut rng = QuantumRng::from_mps(&mps).unwrap();
+        let mut rng = QuantumRng::new().unwrap();
 
         // Test all security levels
         let low = MlKemKeypair::generate(MlKemSecurityLevel::Low, &mut rng).unwrap();
@@ -474,8 +470,7 @@ mod tests {
 
     #[test]
     fn test_mldsa_security_levels() {
-        let mps = MPS::new(10, 4);
-        let mut rng = QuantumRng::from_mps(&mps).unwrap();
+        let mut rng = QuantumRng::new().unwrap();
 
         // Test all security levels
         let low = MlDsaSigningKey::generate(MlDsaSecurityLevel::Low, &mut rng).unwrap();

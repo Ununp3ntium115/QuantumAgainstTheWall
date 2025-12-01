@@ -243,16 +243,48 @@ fn initial_hash(password: &[u8], salt: &[u8], params: &Argon2Params) -> Vec<u8> 
     hasher.finalize().to_vec()
 }
 
-/// Variable-length hash using BLAKE2b per RFC 9106
+/// Variable-length hash using BLAKE2b per RFC 9106 Section 3.5
+/// For outputs > 64 bytes, uses iterative hashing as specified in the RFC
 fn variable_hash(input: &[u8], out_len: usize) -> Vec<u8> {
     use blake2::digest::{Update, VariableOutput};
     use blake2::Blake2bVar;
-    let mut hasher = Blake2bVar::new(out_len).expect("invalid blake2 length");
+
+    // For outputs <= 64 bytes, use Blake2b directly
+    if out_len <= 64 {
+        let mut hasher = Blake2bVar::new(out_len).expect("invalid blake2 length");
+        hasher.update(&(out_len as u32).to_le_bytes());
+        hasher.update(input);
+        let mut out = vec![0u8; out_len];
+        hasher.finalize_variable(&mut out).expect("buffer size mismatch");
+        return out;
+    }
+
+    // For outputs > 64 bytes, use iterative extension per RFC 9106
+    let mut result = Vec::with_capacity(out_len);
+
+    // V1 = Blake2b-64(out_len || input)
+    let mut hasher = Blake2bVar::new(64).expect("64 is valid blake2 length");
     hasher.update(&(out_len as u32).to_le_bytes());
     hasher.update(input);
-    let mut out = vec![0u8; out_len];
-    hasher.finalize_variable(&mut out).expect("buffer size mismatch");
-    out
+    let mut v = vec![0u8; 64];
+    hasher.finalize_variable(&mut v).expect("buffer size mismatch");
+    result.extend_from_slice(&v);
+
+    // Compute additional blocks: Vi = Blake2b(Vi-1)
+    while result.len() < out_len {
+        let remaining = out_len - result.len();
+        let block_size = remaining.min(64);
+
+        let mut hasher = Blake2bVar::new(block_size).expect("valid blake2 length");
+        hasher.update(&v);
+        v.clear();
+        v.resize(block_size, 0);
+        hasher.finalize_variable(&mut v).expect("buffer size mismatch");
+        result.extend_from_slice(&v);
+    }
+
+    result.truncate(out_len);
+    result
 }
 
 /// Fill a block from bytes

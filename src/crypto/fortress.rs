@@ -653,8 +653,7 @@ mod tests {
 
     #[test]
     fn test_fortress_seal_unseal() {
-        let mps = MPS::new(10, 4);
-        let mut rng = QuantumRng::from_mps(&mps).unwrap();
+        let mut rng = QuantumRng::new().unwrap();
 
         let fortress = QuantumFortress::new()
             .level(FortressLevel::Interactive)
@@ -672,8 +671,7 @@ mod tests {
 
     #[test]
     fn test_fortress_wrong_password() {
-        let mps = MPS::new(10, 4);
-        let mut rng = QuantumRng::from_mps(&mps).unwrap();
+        let mut rng = QuantumRng::new().unwrap();
 
         let fortress = QuantumFortress::interactive();
 
@@ -687,8 +685,7 @@ mod tests {
 
     #[test]
     fn test_fortress_data_serialization() {
-        let mps = MPS::new(10, 4);
-        let mut rng = QuantumRng::from_mps(&mps).unwrap();
+        let mut rng = QuantumRng::new().unwrap();
 
         let fortress = QuantumFortress::interactive();
         let sealed = fortress.seal(b"pass", b"data", &mut rng).unwrap();
@@ -713,8 +710,7 @@ mod tests {
 
     #[test]
     fn test_fortress_with_bandwidth() {
-        let mps = MPS::new(10, 4);
-        let mut rng = QuantumRng::from_mps(&mps).unwrap();
+        let mut rng = QuantumRng::new().unwrap();
 
         let fortress = QuantumFortress::new()
             .level(FortressLevel::Interactive)
@@ -736,8 +732,7 @@ mod tests {
 
     #[test]
     fn test_fortress_with_multihash() {
-        let mps = MPS::new(10, 4);
-        let mut rng = QuantumRng::from_mps(&mps).unwrap();
+        let mut rng = QuantumRng::new().unwrap();
 
         let fortress = QuantumFortress::new()
             .level(FortressLevel::Interactive)
@@ -759,8 +754,7 @@ mod tests {
 
     #[test]
     fn test_fortress_enhanced_full() {
-        let mps = MPS::new(10, 4);
-        let mut rng = QuantumRng::from_mps(&mps).unwrap();
+        let mut rng = QuantumRng::new().unwrap();
 
         // Full quantum fortress with all enhancements
         let fortress = QuantumFortress::new()
