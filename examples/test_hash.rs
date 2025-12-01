@@ -6,7 +6,11 @@ use quantum_wall::crypto::kdf::hash_sha256;
 use quantum_wall::crypto::timelock::hash_chain_lock;
 
 fn hex_encode(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+    bytes.iter().fold(String::new(), |mut acc, b| {
+        use std::fmt::Write;
+        let _ = write!(acc, "{:02x}", b);
+        acc
+    })
 }
 
 fn main() {

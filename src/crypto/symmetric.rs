@@ -139,7 +139,7 @@ fn nonce_state_for(key: &SecretKey) -> NonceState {
         .clone()
 }
 
-fn update_nonce_state(key: &SecretKey, mut state: NonceState) {
+fn update_nonce_state(key: &SecretKey, state: NonceState) {
     let mut key_bytes = [0u8; 32];
     key_bytes.copy_from_slice(key.as_bytes());
     let mut guard = NONCE_REGISTRY.lock().expect("nonce registry poisoned");
@@ -414,8 +414,8 @@ mod tests {
         let pt = b"authenticated message";
 
         // Encrypt with AES-GCM
-        let mut encrypted = encrypt(&key, pt, None, &mut rng, SymmetricAlgorithm::Aes256Gcm)
-            .expect("encrypt");
+        let mut encrypted =
+            encrypt(&key, pt, None, &mut rng, SymmetricAlgorithm::Aes256Gcm).expect("encrypt");
 
         // Tamper with tag (flip one bit)
         encrypted.tag[0] ^= 0x01;
@@ -480,7 +480,8 @@ mod tests {
         )
         .expect("encrypt with large AAD");
 
-        let decrypted = decrypt(&key, &encrypted, Some(&large_aad)).expect("decrypt with large AAD");
+        let decrypted =
+            decrypt(&key, &encrypted, Some(&large_aad)).expect("decrypt with large AAD");
         assert_eq!(decrypted, pt);
 
         // Wrong AAD should fail
@@ -525,8 +526,8 @@ mod tests {
         let key2 = SecretKey::generate(&mut rng);
         let pt = b"encrypted with key1";
 
-        let encrypted = encrypt(&key1, pt, None, &mut rng, SymmetricAlgorithm::Aes256Gcm)
-            .expect("encrypt");
+        let encrypted =
+            encrypt(&key1, pt, None, &mut rng, SymmetricAlgorithm::Aes256Gcm).expect("encrypt");
 
         // Decrypt with wrong key should fail
         let result = decrypt(&key2, &encrypted, None);
@@ -544,8 +545,14 @@ mod tests {
         // Encrypt same plaintext 100 times
         let mut nonces = std::collections::HashSet::new();
         for _ in 0..100 {
-            let encrypted = encrypt(&key, pt, None, &mut rng, SymmetricAlgorithm::ChaCha20Poly1305)
-                .expect("encrypt");
+            let encrypted = encrypt(
+                &key,
+                pt,
+                None,
+                &mut rng,
+                SymmetricAlgorithm::ChaCha20Poly1305,
+            )
+            .expect("encrypt");
             nonces.insert(encrypted.nonce);
         }
 

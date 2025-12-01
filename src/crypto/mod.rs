@@ -61,8 +61,8 @@ pub use timelock::{hash_chain_lock, TimeLockParams, TimeLockPuzzle};
 
 // Post-Quantum Cryptography re-exports (NIST standards)
 pub use pqc::{
-    MlKemKeypair, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel,
-    MlDsaSigningKey, MlDsaVerificationKey, MlDsaSecurityLevel,
+    MlDsaSecurityLevel, MlDsaSigningKey, MlDsaVerificationKey, MlKemKeypair, MlKemPublicKey,
+    MlKemSecretKey, MlKemSecurityLevel,
 };
 
 /// Cryptographic error types
@@ -97,7 +97,9 @@ impl std::fmt::Display for CryptoError {
         match self {
             CryptoError::InvalidKeyLength => write!(f, "Invalid key length"),
             CryptoError::InvalidNonceLength => write!(f, "Invalid nonce length"),
-            CryptoError::InvalidSaltLength => write!(f, "Invalid salt length (minimum 8 bytes required)"),
+            CryptoError::InvalidSaltLength => {
+                write!(f, "Invalid salt length (minimum 8 bytes required)")
+            }
             CryptoError::EncryptionFailed => write!(f, "Encryption failed"),
             CryptoError::DecryptionFailed => write!(f, "Decryption failed (authentication error)"),
             CryptoError::InvalidCiphertext => write!(f, "Invalid ciphertext"),

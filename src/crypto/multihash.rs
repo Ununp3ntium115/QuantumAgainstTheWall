@@ -192,7 +192,7 @@ pub fn multi_hash_kdf(password: &[u8], salt: &[u8], iterations: u64, output_len:
     for i in 0..iterations {
         let mut input = Vec::new();
         input.extend_from_slice(&current);
-        input.extend_from_slice(&(i as u64).to_le_bytes());
+        input.extend_from_slice(&i.to_le_bytes());
         current = multi_hash(&input, MultiHashMode::Ultimate);
     }
 

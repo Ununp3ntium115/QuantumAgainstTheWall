@@ -104,6 +104,7 @@ struct Block {
 }
 
 impl Block {
+    #[allow(dead_code)]
     fn new() -> Self {
         Self { data: [0u8; 64] }
     }
@@ -239,8 +240,8 @@ pub fn bandwidth_hard_hash(
     // Phase 3: Finalization
     // XOR all blocks together for final output
     let mut final_block = memory[0].clone();
-    for i in 1..n {
-        final_block.xor_with(&memory[i]);
+    for block in memory.iter().skip(1).take(n - 1) {
+        final_block.xor_with(block);
     }
 
     let final_hash = final_block.hash();
@@ -329,8 +330,8 @@ pub fn bandwidth_hard_hash_enhanced(
 
     // Finalization
     let mut final_block = memory[0].clone();
-    for i in 1..n {
-        final_block.xor_with(&memory[i]);
+    for block in memory.iter().skip(1).take(n - 1) {
+        final_block.xor_with(block);
     }
 
     let output = final_block.hash();
