@@ -44,7 +44,7 @@
 | **CA-001** | 1 | AES-GCM basic test vector |
 
 **Files Created:**
-- `tests/extended_security.rs` (430 lines) - Complete test module with comprehensive documentation
+- `tests/extended_security.rs` (417 lines) - Complete test module with comprehensive documentation
 - `EXTENDED_SECURITY_STATUS.md` (284 lines) - Progress tracking document
 - `SESSION_SUMMARY.md` (this file) - Session summary
 

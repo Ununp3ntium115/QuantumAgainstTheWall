@@ -404,9 +404,9 @@ fn test_ca001_aes_gcm_additional_vectors() {
 fn test_extended_security_suite_summary() {
     // This test always passes and serves as documentation
     println!("\n=== Extended Security Test Suite ===");
-    println!("Total tests in this file: ~20");
+    println!("Total tests in this file: 15");
     println!("Categories covered:");
-    println!("  - KL: Key Lifecycle Management (3 tests)");
+    println!("  - KL: Key Lifecycle Management (5 tests)");
     println!("  - MS: Memory Safety (5 tests)");
     println!("  - SC: Side-Channel Resistance (1 test)");
     println!("  - RQ: Randomness Quality (3 tests)");

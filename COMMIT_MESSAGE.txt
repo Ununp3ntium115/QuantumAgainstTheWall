@@ -36,7 +36,7 @@ Also resolves edition2024 dependency conflict that was preventing builds.
    - 100 MB encryption (ignored test)
 
 4. **MS-002** (2 tests): Memory Leakage Prevention
-   - RNG buffer wipeafter use
+   - RNG buffer wipe after use
    - No plaintext in ciphertext output
 
 5. **SC-006** (1 test): Constant-Time Comparison
