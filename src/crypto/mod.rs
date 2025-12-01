@@ -43,6 +43,7 @@ pub mod bandwidth;    // NEW: Bandwidth-hard functions
 pub mod multihash;    // NEW: Multi-hash support
 pub mod timelock;
 pub mod fortress;
+pub mod pqc;          // NEW: Post-Quantum Cryptography (NIST FIPS 203/204)
 
 // Re-exports
 pub use keys::{SecretKey, PublicKey, KeyPair, EncryptionKey};
@@ -57,6 +58,12 @@ pub use bandwidth::{BandwidthParams, BandwidthKey, bandwidth_hard_hash};  // NEW
 pub use multihash::{MultiHashMode, multi_hash, multi_hash_kdf, MultiHashKey};  // NEW
 pub use timelock::{TimeLockParams, TimeLockPuzzle, hash_chain_lock};
 pub use fortress::{QuantumFortress, FortressConfig, FortressLevel, FortressData, FortressKey};
+
+// Post-Quantum Cryptography re-exports (NIST standards)
+pub use pqc::{
+    MlKemKeypair, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel,
+    MlDsaSigningKey, MlDsaVerificationKey, MlDsaSecurityLevel,
+};
 
 /// Cryptographic error types
 #[derive(Debug, Clone, PartialEq)]
