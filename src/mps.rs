@@ -210,7 +210,8 @@ impl MPS {
     }
 
     /// Update singular values at a bond
-    pub(crate) fn set_singular_values(&mut self, bond: usize, values: Vec<f64>) {
+    /// Override the singular values at a given bond (primarily for tests and demos).
+    pub fn set_singular_values(&mut self, bond: usize, values: Vec<f64>) {
         if bond < self.bond_singular_values.len() {
             self.bond_singular_values[bond] = values;
         }
