@@ -7,7 +7,6 @@
 //! Argon2id with 1GB memory cost makes each guess require 8000x more memory
 //! than available on such a quantum computer.
 
-use crate::crypto::kdf::hash_sha256;
 use crate::crypto::{CryptoError, CryptoResult, Zeroize};
 
 /// Argon2 variant
@@ -121,6 +120,7 @@ impl Zeroize for Block {
 /// Argon2 memory matrix
 struct Memory {
     blocks: Vec<Block>,
+    #[allow(dead_code)]
     lanes: u32,
     lane_length: u32,
 }
@@ -247,18 +247,18 @@ fn initial_hash(password: &[u8], salt: &[u8], params: &Argon2Params) -> Vec<u8> 
     let mut hasher = blake2::Blake2b512::new();
 
     // H0 = BLAKE2b(version | type | params | pwd | salt | secret | ad)
-    hasher.update(&(params.parallelism).to_le_bytes());
-    hasher.update(&(params.output_len as u32).to_le_bytes());
-    hasher.update(&(params.memory_cost).to_le_bytes());
-    hasher.update(&(params.time_cost).to_le_bytes());
-    hasher.update(&0x13u32.to_le_bytes()); // Version 0x13
-    hasher.update(&(params.variant as u32).to_le_bytes());
-    hasher.update(&(password.len() as u32).to_le_bytes());
+    hasher.update((params.parallelism).to_le_bytes());
+    hasher.update((params.output_len as u32).to_le_bytes());
+    hasher.update((params.memory_cost).to_le_bytes());
+    hasher.update((params.time_cost).to_le_bytes());
+    hasher.update(0x13u32.to_le_bytes()); // Version 0x13
+    hasher.update((params.variant as u32).to_le_bytes());
+    hasher.update((password.len() as u32).to_le_bytes());
     hasher.update(password);
-    hasher.update(&(salt.len() as u32).to_le_bytes());
+    hasher.update((salt.len() as u32).to_le_bytes());
     hasher.update(salt);
-    hasher.update(&0u32.to_le_bytes()); // No secret key
-    hasher.update(&0u32.to_le_bytes()); // No associated data
+    hasher.update(0u32.to_le_bytes()); // No secret key
+    hasher.update(0u32.to_le_bytes()); // No associated data
 
     hasher.finalize().to_vec()
 }
@@ -275,7 +275,9 @@ fn variable_hash(input: &[u8], out_len: usize) -> Vec<u8> {
         hasher.update(&(out_len as u32).to_le_bytes());
         hasher.update(input);
         let mut out = vec![0u8; out_len];
-        hasher.finalize_variable(&mut out).expect("buffer size mismatch");
+        hasher
+            .finalize_variable(&mut out)
+            .expect("buffer size mismatch");
         return out;
     }
 
@@ -287,7 +289,9 @@ fn variable_hash(input: &[u8], out_len: usize) -> Vec<u8> {
     hasher.update(&(out_len as u32).to_le_bytes());
     hasher.update(input);
     let mut v = vec![0u8; 64];
-    hasher.finalize_variable(&mut v).expect("buffer size mismatch");
+    hasher
+        .finalize_variable(&mut v)
+        .expect("buffer size mismatch");
     result.extend_from_slice(&v);
 
     // Compute additional blocks: Vi = Blake2b(Vi-1)
@@ -299,7 +303,9 @@ fn variable_hash(input: &[u8], out_len: usize) -> Vec<u8> {
         hasher.update(&v);
         v.clear();
         v.resize(block_size, 0);
-        hasher.finalize_variable(&mut v).expect("buffer size mismatch");
+        hasher
+            .finalize_variable(&mut v)
+            .expect("buffer size mismatch");
         result.extend_from_slice(&v);
     }
 
@@ -372,6 +378,7 @@ fn fill_segment(memory: &mut Memory, pass: u32, lane: u32, slice: u32, params: &
 }
 
 /// Compute reference block position
+#[allow(clippy::too_many_arguments)]
 fn compute_ref_position(
     j1: u64,
     j2: u64,
@@ -455,8 +462,8 @@ fn compress(prev: &Block, ref_block: &Block) -> Block {
     }
 
     // XOR with original
-    for i in 0..128 {
-        result.data[i] ^= state[i];
+    for (result_elem, state_elem) in result.data.iter_mut().zip(state.iter()).take(128) {
+        *result_elem ^= state_elem;
     }
 
     result
@@ -583,12 +590,18 @@ mod tests {
         // Test password sensitivity
         let hash1 = argon2_hash(b"password", b"saltsaltsalt", &params).unwrap();
         let hash2 = argon2_hash(b"Password", b"saltsaltsalt", &params).unwrap(); // Capital P
-        assert_ne!(hash1, hash2, "Single bit change in password should change output");
+        assert_ne!(
+            hash1, hash2,
+            "Single bit change in password should change output"
+        );
 
         // Test salt sensitivity
         let hash3 = argon2_hash(b"password", b"saltsaltsalt", &params).unwrap();
         let hash4 = argon2_hash(b"password", b"Saltsaltsalt", &params).unwrap(); // Capital S
-        assert_ne!(hash3, hash4, "Single bit change in salt should change output");
+        assert_ne!(
+            hash3, hash4,
+            "Single bit change in salt should change output"
+        );
     }
 
     /// QA Item 30: Validate parameter validation

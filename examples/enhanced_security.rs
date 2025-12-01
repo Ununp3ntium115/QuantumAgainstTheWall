@@ -4,8 +4,7 @@
 //! features for maximum security.
 
 use quantum_wall::crypto::{
-    bandwidth_hard_hash, multi_hash, multi_hash_kdf, BandwidthKey, BandwidthParams, MultiHashKey,
-    MultiHashMode,
+    bandwidth_hard_hash, multi_hash, multi_hash_kdf, BandwidthKey, BandwidthParams, MultiHashMode,
 };
 
 fn main() {
@@ -209,8 +208,10 @@ fn main() {
     let client_ip = "192.168.1.100";
 
     // Construct AAD from context
-    let aad = format!("user:{}|session:{}|time:{}|ip:{}",
-                      user_id, session_id, timestamp, client_ip);
+    let aad = format!(
+        "user:{}|session:{}|time:{}|ip:{}",
+        user_id, session_id, timestamp, client_ip
+    );
 
     println!("   AAD (context binding):");
     println!("     - User: {}", user_id);
@@ -219,7 +220,7 @@ fn main() {
     println!("     - Client IP: {}", client_ip);
 
     // Encrypt with AAD binding
-    use quantum_wall::crypto::{QuantumRng, SecretKey, encrypt, decrypt, SymmetricAlgorithm};
+    use quantum_wall::crypto::{decrypt, encrypt, QuantumRng, SecretKey, SymmetricAlgorithm};
 
     let mut rng = QuantumRng::new().expect("Failed to initialize RNG");
     let key = SecretKey::generate(&mut rng);
@@ -228,10 +229,11 @@ fn main() {
     let encrypted = encrypt(
         &key,
         sensitive_data,
-        Some(aad.as_bytes()),  // Bind to context
+        Some(aad.as_bytes()), // Bind to context
         &mut rng,
         SymmetricAlgorithm::ChaCha20Poly1305,
-    ).expect("Encryption failed");
+    )
+    .expect("Encryption failed");
 
     println!("\n   Encrypted with AAD:");
     println!("     - Ciphertext: {} bytes", encrypted.ciphertext.len());
@@ -242,15 +244,18 @@ fn main() {
     let decrypted = decrypt(
         &key,
         &encrypted,
-        Some(aad.as_bytes()),  // Same AAD required
-    ).expect("Decryption failed");
+        Some(aad.as_bytes()), // Same AAD required
+    )
+    .expect("Decryption failed");
 
     assert_eq!(decrypted, sensitive_data);
     println!("\n   ✓ Decryption succeeded with correct AAD");
 
     // Demonstrate AAD mismatch detection
-    let wrong_aad = format!("user:{}|session:{}|time:{}|ip:{}",
-                            user_id, "WRONG_SESSION", timestamp, client_ip);
+    let wrong_aad = format!(
+        "user:{}|session:{}|time:{}|ip:{}",
+        user_id, "WRONG_SESSION", timestamp, client_ip
+    );
 
     let result = decrypt(&key, &encrypted, Some(wrong_aad.as_bytes()));
 
@@ -266,8 +271,13 @@ fn main() {
     println!("     1. Attacker captures encrypted token");
     println!("     2. Attacker tries to replay with different context");
 
-    let replay_aad = format!("user:{}|session:{}|time:{}|ip:{}",
-                             user_id, session_id, timestamp + 3600, client_ip);  // 1 hour later
+    let replay_aad = format!(
+        "user:{}|session:{}|time:{}|ip:{}",
+        user_id,
+        session_id,
+        timestamp + 3600,
+        client_ip
+    ); // 1 hour later
 
     let replay_result = decrypt(&key, &encrypted, Some(replay_aad.as_bytes()));
     match replay_result {
@@ -300,5 +310,4 @@ fn main() {
     println!("✓ Combined approach creates mathematically unbreakable security");
     println!("✓ Suitable for: passwords, encryption keys, digital signatures, sessions");
     println!("\nSee SECURITY_ANALYSIS.md for detailed security proofs.");
-
 }

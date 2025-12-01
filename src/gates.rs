@@ -424,8 +424,8 @@ fn simple_svd(
         .sqrt()
         .max(1e-10);
 
-    for i in 0..rank {
-        s[i] = norm / (rank as f64).sqrt();
+    for s_elem in s.iter_mut().take(rank) {
+        *s_elem = norm / (rank as f64).sqrt();
     }
 
     (u, s, vt)

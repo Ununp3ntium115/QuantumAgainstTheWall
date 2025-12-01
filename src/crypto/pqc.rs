@@ -40,8 +40,8 @@
 //! assert_eq!(shared_secret, decapsulated_secret);
 //! ```
 
-use crate::crypto::{CryptoResult, CryptoError, Zeroize};
 use crate::crypto::rng::QuantumRng;
+use crate::crypto::{CryptoError, CryptoResult, Zeroize};
 
 /// ML-KEM security levels (FIPS 203)
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -76,8 +76,8 @@ impl MlKemPublicKey {
     pub fn from_bytes(level: MlKemSecurityLevel, bytes: &[u8]) -> CryptoResult<Self> {
         let expected_len = match level {
             MlKemSecurityLevel::Low => 800,     // ML-KEM-512
-            MlKemSecurityLevel::Medium => 1184,  // ML-KEM-768
-            MlKemSecurityLevel::High => 1568,    // ML-KEM-1024
+            MlKemSecurityLevel::Medium => 1184, // ML-KEM-768
+            MlKemSecurityLevel::High => 1568,   // ML-KEM-1024
         };
 
         if bytes.len() != expected_len {
@@ -125,8 +125,8 @@ impl MlKemPublicKey {
 
         let mut ciphertext = vec![0u8; ciphertext_size];
         // Fill with deterministic data based on ephemeral key
-        for i in 0..ciphertext.len() {
-            ciphertext[i] = hash_sha256(&[&ephemeral[..], &[i as u8]].concat())[0];
+        for (i, ct_byte) in ciphertext.iter_mut().enumerate() {
+            *ct_byte = hash_sha256(&[&ephemeral[..], &[i as u8]].concat())[0];
         }
 
         Ok((ciphertext, shared_secret))
@@ -140,6 +140,7 @@ impl MlKemPublicKey {
 
 /// ML-KEM secret key
 pub struct MlKemSecretKey {
+    #[allow(dead_code)]
     level: MlKemSecurityLevel,
     key_bytes: Vec<u8>,
 }
@@ -216,25 +217,33 @@ impl MlKemKeypair {
 
         // Generate public key (deterministically from seed)
         let mut pub_key_bytes = vec![0u8; pub_size];
-        for i in 0..pub_size {
+        for (i, pub_byte) in pub_key_bytes.iter_mut().enumerate() {
             let chunk_idx = i / 32;
             let byte_idx = i % 32;
-            let hash = hash_sha256(&[&seed[..], b"pub", &(chunk_idx as u64).to_le_bytes()].concat());
-            pub_key_bytes[i] = hash[byte_idx];
+            let hash =
+                hash_sha256(&[&seed[..], b"pub", &(chunk_idx as u64).to_le_bytes()].concat());
+            *pub_byte = hash[byte_idx];
         }
 
         // Generate secret key
         let mut sec_key_bytes = vec![0u8; sec_size];
-        for i in 0..sec_size {
+        for (i, sec_byte) in sec_key_bytes.iter_mut().enumerate() {
             let chunk_idx = i / 32;
             let byte_idx = i % 32;
-            let hash = hash_sha256(&[&seed[..], b"sec", &(chunk_idx as u64).to_le_bytes()].concat());
-            sec_key_bytes[i] = hash[byte_idx];
+            let hash =
+                hash_sha256(&[&seed[..], b"sec", &(chunk_idx as u64).to_le_bytes()].concat());
+            *sec_byte = hash[byte_idx];
         }
 
         Ok(Self {
-            pub_key: MlKemPublicKey { level, key_bytes: pub_key_bytes },
-            sec_key: MlKemSecretKey { level, key_bytes: sec_key_bytes },
+            pub_key: MlKemPublicKey {
+                level,
+                key_bytes: pub_key_bytes,
+            },
+            sec_key: MlKemSecretKey {
+                level,
+                key_bytes: sec_key_bytes,
+            },
         })
     }
 
@@ -275,11 +284,12 @@ impl MlDsaSigningKey {
         let seed = rng.gen_bytes_32();
         let mut key_bytes = vec![0u8; size];
 
-        for i in 0..size {
+        for (i, key_byte) in key_bytes.iter_mut().enumerate() {
             let chunk_idx = i / 32;
             let byte_idx = i % 32;
-            let hash = hash_sha256(&[&seed[..], b"sign", &(chunk_idx as u64).to_le_bytes()].concat());
-            key_bytes[i] = hash[byte_idx];
+            let hash =
+                hash_sha256(&[&seed[..], b"sign", &(chunk_idx as u64).to_le_bytes()].concat());
+            *key_byte = hash[byte_idx];
         }
 
         Ok(Self { level, key_bytes })
@@ -304,17 +314,18 @@ impl MlDsaSigningKey {
         };
 
         let mut signature = vec![0u8; sig_size];
-        for i in 0..sig_size {
+        for (i, sig_byte) in signature.iter_mut().enumerate().take(sig_size) {
             let chunk_idx = i / 32;
             let byte_idx = i % 32;
             let hash = hash_sha256(&[&sig_input[..], &(chunk_idx as u64).to_le_bytes()].concat());
-            signature[i] = hash[byte_idx];
+            *sig_byte = hash[byte_idx];
         }
 
         // Embed verification component (vk_hash || message) at the start
         // This allows verification to check signature authenticity
         let vk_hash = self.verification_key();
-        let verification_component = hash_sha256(&[&vk_hash.key_bytes[..], message, b"sig_check"].concat());
+        let verification_component =
+            hash_sha256(&[&vk_hash.key_bytes[..], message, b"sig_check"].concat());
         signature[0..32].copy_from_slice(&verification_component);
 
         Ok(signature)
@@ -331,11 +342,18 @@ impl MlDsaSigningKey {
         };
 
         let mut vk_bytes = vec![0u8; size];
-        for i in 0..size {
+        for (i, vk_byte) in vk_bytes.iter_mut().enumerate().take(size) {
             let chunk_idx = i / 32;
             let byte_idx = i % 32;
-            let hash = hash_sha256(&[&self.key_bytes[..], b"verify", &(chunk_idx as u64).to_le_bytes()].concat());
-            vk_bytes[i] = hash[byte_idx];
+            let hash = hash_sha256(
+                &[
+                    &self.key_bytes[..],
+                    b"verify",
+                    &(chunk_idx as u64).to_le_bytes(),
+                ]
+                .concat(),
+            );
+            *vk_byte = hash[byte_idx];
         }
 
         MlDsaVerificationKey {
@@ -376,12 +394,13 @@ impl MlDsaVerificationKey {
         // In real ML-DSA, this would verify the lattice-based signature
         // For simplified version: verify that signature was created from this message
         // by checking if the signature contains a hash of (vk || message)
-        let expected_component = hash_sha256(&[&self.key_bytes[..], message, b"sig_check"].concat());
+        let expected_component =
+            hash_sha256(&[&self.key_bytes[..], message, b"sig_check"].concat());
 
         // Check if signature contains expected component
         // (In real ML-DSA, this would be a complex lattice verification)
         for i in 0..signature.len().saturating_sub(31) {
-            if signature[i..i+32] == expected_component {
+            if signature[i..i + 32] == expected_component {
                 return true;
             }
         }
@@ -398,7 +417,6 @@ impl MlDsaVerificationKey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MPS;
 
     #[test]
     fn test_mlkem_keypair_generation() {

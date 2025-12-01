@@ -111,7 +111,8 @@ fn memory_usage_matches_tensor_layout_documentation() {
     let mps = MPS::new(4, 8);
 
     // Manual tensor element counts based on left/right caps from construction
-    let element_counts = [1 * 2 * 8, 2 * 2 * 4, 4 * 2 * 2, 8 * 2 * 1];
+    // left_dim * phys_dim * right_dim for each site: [1,2,4,8] x 2 x [8,4,2,1]
+    let element_counts = [2 * 8, 2 * 2 * 4, 4 * 2 * 2, 8 * 2];
     let tensor_elements: usize = element_counts.iter().sum();
     let expected_tensor_bytes = tensor_elements * std::mem::size_of::<num_complex::Complex64>();
 

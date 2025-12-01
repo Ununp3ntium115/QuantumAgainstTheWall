@@ -28,8 +28,8 @@ getrandom = "0.2"
 hex-literal = "0.4"
 
 # Post-Quantum Cryptography (NIST standards)
-ml-kem = "0.3.0-pre"      # FIPS 203 - Module-Lattice-Based KEM (Kyber)
-fips204 = "0.4"            # FIPS 204 - Module-Lattice-Based DSA (Dilithium)
+ml-kem = "0.2"      # FIPS 203 - Module-Lattice-Based KEM (Kyber)
+fips204 = "0.4"     # FIPS 204 - Module-Lattice-Based DSA (Dilithium)
 
 # Optional WASM dependencies
 wasm-bindgen = { version = "0.2", optional = true }

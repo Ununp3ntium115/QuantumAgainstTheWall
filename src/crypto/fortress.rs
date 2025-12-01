@@ -68,8 +68,8 @@ impl Default for FortressConfig {
             level: FortressLevel::Standard,
             use_argon2: true,
             use_balloon: true,
-            use_bandwidth: true,      // NEW: Enabled by default
-            use_multihash: true,       // NEW: Enabled by default
+            use_bandwidth: true, // NEW: Enabled by default
+            use_multihash: true, // NEW: Enabled by default
             use_timelock: true,
             use_layered_encryption: true,
         }
@@ -83,8 +83,8 @@ impl FortressConfig {
             level: FortressLevel::Quantum,
             use_argon2: true,
             use_balloon: true,
-            use_bandwidth: true,       // NEW: Maximum bandwidth usage
-            use_multihash: true,        // NEW: Ultimate mode
+            use_bandwidth: true, // NEW: Maximum bandwidth usage
+            use_multihash: true, // NEW: Ultimate mode
             use_timelock: true,
             use_layered_encryption: true,
         }
@@ -96,8 +96,8 @@ impl FortressConfig {
             level: FortressLevel::Interactive,
             use_argon2: true,
             use_balloon: false,
-            use_bandwidth: false,      // NEW: Disabled for speed
-            use_multihash: false,       // NEW: Disabled for speed
+            use_bandwidth: false, // NEW: Disabled for speed
+            use_multihash: false, // NEW: Disabled for speed
             use_timelock: false,
             use_layered_encryption: false,
         }
@@ -132,10 +132,10 @@ impl FortressConfig {
 
     fn multihash_mode(&self) -> MultiHashMode {
         match self.level {
-            FortressLevel::Interactive => MultiHashMode::Xor,        // Fast
-            FortressLevel::Standard => MultiHashMode::Cascade,       // Balanced
-            FortressLevel::High => MultiHashMode::Nested,            // Secure
-            FortressLevel::Quantum => MultiHashMode::Ultimate,       // Maximum
+            FortressLevel::Interactive => MultiHashMode::Xor, // Fast
+            FortressLevel::Standard => MultiHashMode::Cascade, // Balanced
+            FortressLevel::High => MultiHashMode::Nested,     // Secure
+            FortressLevel::Quantum => MultiHashMode::Ultimate, // Maximum
         }
     }
 
@@ -170,11 +170,7 @@ impl FortressKey {
     /// 5. Time-lock - Sequential work that cannot be parallelized
     ///
     /// Result: Mathematically and physically impossible to break
-    pub fn derive(
-        password: &[u8],
-        salt: &[u8],
-        config: &FortressConfig,
-    ) -> CryptoResult<Self> {
+    pub fn derive(password: &[u8], salt: &[u8], config: &FortressConfig) -> CryptoResult<Self> {
         let mut key_material = password.to_vec();
 
         // Stage 1: Argon2id (memory wall)
@@ -214,19 +210,28 @@ impl FortressKey {
 
         // Derive multiple keys using HKDF-like expansion with multi-hash
         let primary = if config.use_multihash {
-            multi_hash(&[&key_material[..], b"primary"].concat(), MultiHashMode::Ultimate)
+            multi_hash(
+                &[&key_material[..], b"primary"].concat(),
+                MultiHashMode::Ultimate,
+            )
         } else {
             hash_sha256(&[&key_material[..], b"primary"].concat())
         };
 
         let secondary = if config.use_multihash {
-            multi_hash(&[&key_material[..], b"secondary"].concat(), MultiHashMode::Ultimate)
+            multi_hash(
+                &[&key_material[..], b"secondary"].concat(),
+                MultiHashMode::Ultimate,
+            )
         } else {
             hash_sha256(&[&key_material[..], b"secondary"].concat())
         };
 
         let auth = if config.use_multihash {
-            multi_hash(&[&key_material[..], b"auth"].concat(), MultiHashMode::Ultimate)
+            multi_hash(
+                &[&key_material[..], b"auth"].concat(),
+                MultiHashMode::Ultimate,
+            )
         } else {
             hash_sha256(&[&key_material[..], b"auth"].concat())
         };
@@ -505,10 +510,10 @@ impl QuantumFortress {
             flags |= 0x08;
         }
         if self.config.use_bandwidth {
-            flags |= 0x10;  // NEW
+            flags |= 0x10; // NEW
         }
         if self.config.use_multihash {
-            flags |= 0x20;  // NEW
+            flags |= 0x20; // NEW
         }
 
         Ok(FortressData {
@@ -528,8 +533,8 @@ impl QuantumFortress {
         config.use_balloon = data.flags & 0x02 != 0;
         config.use_timelock = data.flags & 0x04 != 0;
         config.use_layered_encryption = data.flags & 0x08 != 0;
-        config.use_bandwidth = data.flags & 0x10 != 0;  // NEW
-        config.use_multihash = data.flags & 0x20 != 0;  // NEW
+        config.use_bandwidth = data.flags & 0x10 != 0; // NEW
+        config.use_multihash = data.flags & 0x20 != 0; // NEW
 
         // Derive keys (this is the slow part - by design!)
         let keys = FortressKey::derive(password, &data.salt, &config)?;
@@ -574,20 +579,20 @@ impl QuantumFortress {
         if self.config.use_bandwidth {
             // Bandwidth-hard time estimates (physics-limited)
             time += match self.config.level {
-                FortressLevel::Interactive => 0.2,  // 16 MB, ~0.2s
-                FortressLevel::Standard => 0.8,     // 64 MB, ~0.8s
-                FortressLevel::High => 3.0,         // 256 MB, ~3s
-                FortressLevel::Quantum => 12.0,     // 1 GB, ~12s
+                FortressLevel::Interactive => 0.2, // 16 MB, ~0.2s
+                FortressLevel::Standard => 0.8,    // 64 MB, ~0.8s
+                FortressLevel::High => 3.0,        // 256 MB, ~3s
+                FortressLevel::Quantum => 12.0,    // 1 GB, ~12s
             };
         }
 
         if self.config.use_multihash {
             // Multi-hash overhead (negligible for most modes)
             time += match self.config.level {
-                FortressLevel::Interactive => 0.001,  // XOR mode (fast)
-                FortressLevel::Standard => 0.002,     // Cascade mode
-                FortressLevel::High => 0.003,         // Nested mode
-                FortressLevel::Quantum => 0.005,      // Ultimate mode
+                FortressLevel::Interactive => 0.001, // XOR mode (fast)
+                FortressLevel::Standard => 0.002,    // Cascade mode
+                FortressLevel::High => 0.003,        // Nested mode
+                FortressLevel::Quantum => 0.005,     // Ultimate mode
             };
         }
 
@@ -628,7 +633,6 @@ impl Default for QuantumFortress {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MPS;
 
     #[test]
     fn test_fortress_key_derivation() {
@@ -758,12 +762,12 @@ mod tests {
 
         // Full quantum fortress with all enhancements
         let fortress = QuantumFortress::new()
-            .level(FortressLevel::Interactive)  // Use interactive for speed
+            .level(FortressLevel::Interactive) // Use interactive for speed
             .argon2(true)
             .balloon(true)
             .bandwidth(true)
             .multihash(true)
-            .timelock(false);  // Skip timelock for speed
+            .timelock(false); // Skip timelock for speed
 
         let plaintext = b"Maximum security test";
         let password = b"ultra_secure_password";
@@ -771,10 +775,10 @@ mod tests {
         let sealed = fortress.seal(password, plaintext, &mut rng).unwrap();
 
         // Should have argon2, balloon, bandwidth, and multihash flags
-        assert_eq!(sealed.flags & 0x01, 0x01);  // Argon2
-        assert_eq!(sealed.flags & 0x02, 0x02);  // Balloon
-        assert_eq!(sealed.flags & 0x10, 0x10);  // Bandwidth
-        assert_eq!(sealed.flags & 0x20, 0x20);  // Multihash
+        assert_eq!(sealed.flags & 0x01, 0x01); // Argon2
+        assert_eq!(sealed.flags & 0x02, 0x02); // Balloon
+        assert_eq!(sealed.flags & 0x10, 0x10); // Bandwidth
+        assert_eq!(sealed.flags & 0x20, 0x20); // Multihash
 
         let unsealed = fortress.unseal(password, &sealed).unwrap();
         assert_eq!(plaintext.to_vec(), unsealed);

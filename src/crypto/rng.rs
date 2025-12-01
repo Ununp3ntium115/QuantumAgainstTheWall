@@ -399,13 +399,13 @@ impl QuantumRng {
         }
 
         // Add original state
-        for i in 0..16 {
-            working[i] = working[i].wrapping_add(self.state[i]);
+        for (work, state) in working.iter_mut().zip(self.state.iter()).take(16) {
+            *work = work.wrapping_add(*state);
         }
 
         // Convert to bytes
-        for i in 0..16 {
-            let bytes = working[i].to_le_bytes();
+        for (i, work) in working.iter().enumerate().take(16) {
+            let bytes = work.to_le_bytes();
             self.buffer[i * 4] = bytes[0];
             self.buffer[i * 4 + 1] = bytes[1];
             self.buffer[i * 4 + 2] = bytes[2];
@@ -471,9 +471,9 @@ impl SimpleHasher {
         }
 
         // Simple mixing
-        for i in 0..4 {
+        for (i, w_elem) in w.iter().enumerate().take(4) {
             self.state[i] = self.state[i]
-                .wrapping_add(w[i])
+                .wrapping_add(*w_elem)
                 .rotate_left(17)
                 .wrapping_mul(0x9e3779b97f4a7c15);
             self.state[(i + 1) % 4] ^= self.state[i];
@@ -580,7 +580,10 @@ mod tests {
         let rng = QuantumRng::from_mps(&mps);
         if rng.is_err() {
             let entropy = crate::entropy::total_entanglement_entropy(&mps);
-            panic!("MPS failed to generate sufficient entropy. Got {} bits, need 128", entropy);
+            panic!(
+                "MPS failed to generate sufficient entropy. Got {} bits, need 128",
+                entropy
+            );
         }
         assert!(rng.is_ok());
     }
@@ -640,7 +643,11 @@ mod tests {
         let blocks_generated = final_blocks - initial_blocks;
 
         // Should have generated exactly 3 new blocks for the remaining 136 bytes
-        assert_eq!(blocks_generated, 3, "Expected exactly 3 blocks, got {}", blocks_generated);
+        assert_eq!(
+            blocks_generated, 3,
+            "Expected exactly 3 blocks, got {}",
+            blocks_generated
+        );
 
         // Verify bytes_generated() tracks correctly (total blocks * 64)
         assert_eq!(rng.bytes_generated(), final_blocks * 64);

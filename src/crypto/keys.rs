@@ -76,7 +76,11 @@ impl PublicKey {
 
     /// Export as hex string.
     pub fn to_hex(&self) -> String {
-        self.bytes.iter().map(|b| format!("{:02x}", b)).collect()
+        self.bytes.iter().fold(String::new(), |mut acc, b| {
+            use std::fmt::Write;
+            let _ = write!(acc, "{:02x}", b);
+            acc
+        })
     }
 
     /// Import from hex string.
@@ -286,8 +290,11 @@ pub enum KeyAlgorithm {
 }
 
 // X25519 implementation (simplified)
+// Note: X25519 is currently disabled in favor of ML-KEM (FIPS 203)
+// These functions are kept for potential future re-enablement
 
 /// X25519 base point multiplication (compute public from secret).
+#[allow(dead_code)]
 fn x25519_base_mul(secret: &[u8; 32]) -> [u8; 32] {
     // Base point: 9
     let mut basepoint = [0u8; 32];
@@ -296,6 +303,7 @@ fn x25519_base_mul(secret: &[u8; 32]) -> [u8; 32] {
 }
 
 /// X25519 scalar multiplication.
+#[allow(dead_code)]
 fn x25519_scalar_mul(scalar: &[u8; 32], point: &[u8; 32]) -> [u8; 32] {
     // Field element representation
     let x1 = fe_from_bytes(point);
@@ -437,6 +445,7 @@ fn fe_sub(f: &Fe, g: &Fe) -> Fe {
     h
 }
 
+#[allow(clippy::needless_range_loop)]
 fn fe_mul(f: &Fe, g: &Fe) -> Fe {
     // Simplified multiplication (not constant-time for brevity)
     let mut h = [0i128; 10];
@@ -503,6 +512,7 @@ fn fe_reduce(h: &mut Fe) {
     }
 }
 
+#[allow(dead_code)]
 fn fe_cswap(f: &mut Fe, g: &mut Fe, swap: u32) {
     let swap = -(swap as i64);
     for i in 0..10 {
@@ -512,6 +522,7 @@ fn fe_cswap(f: &mut Fe, g: &mut Fe, swap: u32) {
     }
 }
 
+#[allow(dead_code)]
 fn fe_invert(z: &Fe) -> Fe {
     // Compute z^(p-2) using exponentiation by squaring
     let mut t0 = fe_sq(z);
@@ -637,11 +648,8 @@ mod tests {
         assert_eq!(counter, 100);
 
         // Simulate serialization/deserialization
-        let key_bytes = key1.key().as_bytes().clone();
-        let key2 = EncryptionKey::from_key_and_counter(
-            SecretKey::new(key_bytes),
-            counter
-        );
+        let key_bytes = *key1.key().as_bytes();
+        let key2 = EncryptionKey::from_key_and_counter(SecretKey::new(key_bytes), counter);
 
         // Restored key should have same counter
         assert_eq!(key2.nonce_counter(), 100);
@@ -673,24 +681,17 @@ mod tests {
         let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
 
         let key_bytes = rng.gen_bytes_32();
-        let key = EncryptionKey::from_key_and_counter(
-            SecretKey::new(key_bytes),
-            0
-        );
+        let key = EncryptionKey::from_key_and_counter(SecretKey::new(key_bytes), 0);
         assert!(!key.should_rotate());
 
         // Approach AES-GCM limit
-        let key_at_limit = EncryptionKey::from_key_and_counter(
-            SecretKey::new(key_bytes),
-            (1u64 << 31) - 1
-        );
+        let key_at_limit =
+            EncryptionKey::from_key_and_counter(SecretKey::new(key_bytes), (1u64 << 31) - 1);
         assert!(!key_at_limit.should_rotate());
 
         // At limit
-        let key_past_limit = EncryptionKey::from_key_and_counter(
-            SecretKey::new(key_bytes),
-            1u64 << 31
-        );
+        let key_past_limit =
+            EncryptionKey::from_key_and_counter(SecretKey::new(key_bytes), 1u64 << 31);
         assert!(key_past_limit.should_rotate());
     }
 }

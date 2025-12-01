@@ -6,7 +6,7 @@
 //!
 //! These algorithms are resistant to attacks from both classical and quantum computers.
 
-use quantum_wall::{MPS, crypto::*};
+use quantum_wall::{crypto::*, MPS};
 
 fn main() {
     println!("=== QuantumWall Post-Quantum Cryptography ===\n");
@@ -29,8 +29,14 @@ fn main() {
     // Generate keypair for Alice
     println!("   Alice generates ML-KEM-768 keypair (192-bit security)...");
     let alice_keypair = MlKemKeypair::generate(MlKemSecurityLevel::Medium, &mut rng).unwrap();
-    println!("   - Public key size: {} bytes", alice_keypair.public_key().as_bytes().len());
-    println!("   - Secret key size: {} bytes", alice_keypair.secret_key().as_bytes().len());
+    println!(
+        "   - Public key size: {} bytes",
+        alice_keypair.public_key().as_bytes().len()
+    );
+    println!(
+        "   - Secret key size: {} bytes",
+        alice_keypair.secret_key().as_bytes().len()
+    );
 
     // Bob encapsulates a shared secret using Alice's public key
     println!("\n   Bob encapsulates shared secret using Alice's public key...");
@@ -41,7 +47,10 @@ fn main() {
     // Alice decapsulates to get the same shared secret
     println!("\n   Alice decapsulates to recover shared secret...");
     let alice_shared_secret = alice_keypair.decapsulate(&ciphertext).unwrap();
-    println!("   - Recovered secret: {:02x?}...", &alice_shared_secret[0..8]);
+    println!(
+        "   - Recovered secret: {:02x?}...",
+        &alice_shared_secret[0..8]
+    );
 
     println!("\n   ✓ Key encapsulation successful!");
     println!("   → Quantum-resistant secure key exchange complete\n");
@@ -60,7 +69,10 @@ fn main() {
     println!("   Generating ML-DSA-65 signing key (192-bit security)...");
     let signing_key = MlDsaSigningKey::generate(MlDsaSecurityLevel::Medium, &mut rng).unwrap();
     let verification_key = signing_key.verification_key();
-    println!("   - Verification key size: {} bytes", verification_key.as_bytes().len());
+    println!(
+        "   - Verification key size: {} bytes",
+        verification_key.as_bytes().len()
+    );
 
     // Sign a message
     let message = b"This message is signed with post-quantum cryptography!";
@@ -69,17 +81,30 @@ fn main() {
 
     let signature = signing_key.sign(message, &mut rng).unwrap();
     println!("\n   - Signature size: {} bytes", signature.len());
-    println!("   - Signature (first 16 bytes): {:02x?}...", &signature[0..16]);
+    println!(
+        "   - Signature (first 16 bytes): {:02x?}...",
+        &signature[0..16]
+    );
 
     // Verify signature
     println!("\n   Verifying signature...");
     let is_valid = verification_key.verify(message, &signature);
-    println!("   - Verification result: {}", if is_valid { "✓ VALID" } else { "✗ INVALID" });
+    println!(
+        "   - Verification result: {}",
+        if is_valid { "✓ VALID" } else { "✗ INVALID" }
+    );
 
     // Try to verify with wrong message
     let wrong_message = b"This is a different message";
     let is_valid_wrong = verification_key.verify(wrong_message, &signature);
-    println!("   - Wrong message verification: {}", if is_valid_wrong { "✗ INVALID (should fail)" } else { "✓ CORRECTLY REJECTED" });
+    println!(
+        "   - Wrong message verification: {}",
+        if is_valid_wrong {
+            "✗ INVALID (should fail)"
+        } else {
+            "✓ CORRECTLY REJECTED"
+        }
+    );
 
     println!("\n   ✓ Digital signature successful!");
     println!("   → Quantum-resistant authentication complete\n");
