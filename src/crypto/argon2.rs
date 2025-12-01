@@ -158,8 +158,9 @@ impl Zeroize for Memory {
 
 /// Derive a key using Argon2id
 pub fn argon2_hash(password: &[u8], salt: &[u8], params: &Argon2Params) -> CryptoResult<Vec<u8>> {
+    // QA Item 27: Dedicated error for salt length validation (RFC 9106 requires ≥8 bytes)
     if salt.len() < 8 {
-        return Err(CryptoError::InvalidNonceLength);
+        return Err(CryptoError::InvalidSaltLength);
     }
     if params.memory_cost < 8 * params.parallelism {
         return Err(CryptoError::KeyDerivationFailed);

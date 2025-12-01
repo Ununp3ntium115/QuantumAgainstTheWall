@@ -72,6 +72,8 @@ pub enum CryptoError {
     InvalidKeyLength,
     /// Invalid nonce length
     InvalidNonceLength,
+    /// Invalid salt length (QA Item 27: dedicated error for Argon2 salt validation)
+    InvalidSaltLength,
     /// Encryption failed
     EncryptionFailed,
     /// Decryption failed (authentication error)
@@ -95,6 +97,7 @@ impl std::fmt::Display for CryptoError {
         match self {
             CryptoError::InvalidKeyLength => write!(f, "Invalid key length"),
             CryptoError::InvalidNonceLength => write!(f, "Invalid nonce length"),
+            CryptoError::InvalidSaltLength => write!(f, "Invalid salt length (minimum 8 bytes required)"),
             CryptoError::EncryptionFailed => write!(f, "Encryption failed"),
             CryptoError::DecryptionFailed => write!(f, "Decryption failed (authentication error)"),
             CryptoError::InvalidCiphertext => write!(f, "Invalid ciphertext"),
