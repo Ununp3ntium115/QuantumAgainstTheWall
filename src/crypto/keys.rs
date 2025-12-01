@@ -1,7 +1,8 @@
 //! Cryptographic key types and management.
 
-use crate::crypto::{CryptoError, CryptoResult, Zeroize};
 use crate::crypto::rng::QuantumRng;
+use crate::crypto::{CryptoError, CryptoResult, Zeroize};
+use x25519_dalek::{PublicKey as DalekPublicKey, StaticSecret};
 
 /// A 256-bit secret key for symmetric encryption.
 #[derive(Clone)]
@@ -123,20 +124,13 @@ impl KeyPair {
 
     /// Generate a new X25519 key pair for key exchange.
     pub fn generate_x25519(rng: &mut QuantumRng) -> Self {
-        // X25519 key generation
-        let mut secret = rng.gen_bytes_32();
-
-        // Clamp secret key per X25519 spec
-        secret[0] &= 248;
-        secret[31] &= 127;
-        secret[31] |= 64;
-
-        // Compute public key: public = secret * basepoint
-        let public_bytes = x25519_base_mul(&secret);
+        let secret_bytes = rng.gen_bytes_32();
+        let secret = StaticSecret::from(secret_bytes);
+        let public = DalekPublicKey::from(&secret);
 
         Self {
-            public: PublicKey::new(public_bytes.to_vec(), KeyAlgorithm::X25519),
-            secret: secret.to_vec(),
+            public: PublicKey::new(public.to_bytes().to_vec(), KeyAlgorithm::X25519),
+            secret: secret.to_bytes().to_vec(),
             algorithm: KeyAlgorithm::X25519,
         }
     }
@@ -150,20 +144,21 @@ impl KeyPair {
             return Err(CryptoError::InvalidKeyLength);
         }
 
-        let mut secret = [0u8; 32];
-        secret.copy_from_slice(&self.secret);
+        let mut secret_bytes = [0u8; 32];
+        secret_bytes.copy_from_slice(&self.secret);
+        let secret = StaticSecret::from(secret_bytes);
 
-        let mut their_pub = [0u8; 32];
-        their_pub.copy_from_slice(their_public.as_bytes());
+        let mut pub_bytes = [0u8; 32];
+        pub_bytes.copy_from_slice(their_public.as_bytes());
+        let their_pub = DalekPublicKey::from(pub_bytes);
 
-        let shared = x25519_scalar_mul(&secret, &their_pub);
-
-        // Check for all-zero result (invalid)
-        if shared.iter().all(|&b| b == 0) {
+        let shared = secret.diffie_hellman(&their_pub);
+        let mut out = [0u8; 32];
+        out.copy_from_slice(shared.as_bytes());
+        if out.iter().all(|&b| b == 0) {
             return Err(CryptoError::KeyExchangeFailed);
         }
-
-        Ok(shared)
+        Ok(out)
     }
 }
 
@@ -390,8 +385,8 @@ fn fe_sub(f: &Fe, g: &Fe) -> Fe {
     let mut h = [0i64; 10];
     // 2*p in radix 2^25.5 representation
     let two_p: [i64; 10] = [
-        0x7ffffda, 0x3fffffe, 0x7fffffe, 0x3fffffe, 0x7fffffe,
-        0x3fffffe, 0x7fffffe, 0x3fffffe, 0x7fffffe, 0x3fffffe,
+        0x7ffffda, 0x3fffffe, 0x7fffffe, 0x3fffffe, 0x7fffffe, 0x3fffffe, 0x7fffffe, 0x3fffffe,
+        0x7fffffe, 0x3fffffe,
     ];
     for i in 0..10 {
         h[i] = f[i].wrapping_add(two_p[i]).wrapping_sub(g[i]);
@@ -533,16 +528,15 @@ mod tests {
     #[test]
     fn test_secret_key_generation() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0);
+        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
         let key = SecretKey::generate(&mut rng);
         assert_eq!(key.as_bytes().len(), 32);
     }
 
     #[test]
-    #[ignore = "X25519 field arithmetic needs refinement - use external x25519 crate for production"]
     fn test_x25519_key_exchange() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0);
+        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
 
         let alice = KeyPair::generate_x25519(&mut rng);
         let bob = KeyPair::generate_x25519(&mut rng);
@@ -556,7 +550,7 @@ mod tests {
     #[test]
     fn test_encryption_key_nonce() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0);
+        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
 
         let mut key = EncryptionKey::generate(&mut rng);
         let nonce1 = key.next_nonce(&mut rng);

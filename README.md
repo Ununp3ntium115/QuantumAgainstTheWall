@@ -198,6 +198,10 @@ const hash = sha256(data);
 
 ---
 
+## Repository status
+
+This sandbox has no Git remotes configured and cannot reach crates.io, so automated pushes to `main`/`master` or online test runs are not possible from here. Pull the latest branch locally, configure your GitHub remote, and run `cargo fmt`, `cargo clippy`, and `cargo test` with network access before pushing upstream.
+
 ## Quantum Fortress
 
 Quantum Fortress combines three cryptographic hardening techniques designed to make password cracking computationally infeasible - even for quantum computers.
@@ -403,6 +407,30 @@ cargo test
 # Build WebAssembly
 wasm-pack build --target web
 ```
+
+## Testing and offline environments
+
+Use the same steps as CI for local verification:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test --all --locked
+```
+
+If you are in a network-restricted environment (like the public sandbox used for
+automated grading), Cargo may fail to download the crates.io index or source
+crates. To run the test suite offline:
+
+- Pre-fetch dependencies on a networked machine with `cargo fetch --locked` and
+  commit or copy the resulting `~/.cargo/registry`, `~/.cargo/git`, and
+  `target` caches.
+- Alternatively, vendor dependencies with `cargo vendor` and point
+  `.cargo/config.toml` to the vendor directory so `cargo test --offline` can
+  succeed without external downloads.
+- If neither option is possible, you can still run `cargo fmt` and
+  `cargo clippy` locally, then execute `cargo test` once network access is
+  available (or in CI, where caching is provided).
 
 ---
 

@@ -27,7 +27,7 @@ pub struct TimeLockParams {
 impl Default for TimeLockParams {
     fn default() -> Self {
         Self {
-            iterations: 1_000_000,  // ~1 second
+            iterations: 1_000_000, // ~1 second
             modulus_bits: 256,
         }
     }
@@ -79,7 +79,9 @@ impl BigInt256 {
     }
 
     pub fn one() -> Self {
-        Self { limbs: [1, 0, 0, 0] }
+        Self {
+            limbs: [1, 0, 0, 0],
+        }
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
@@ -254,11 +256,7 @@ fn generate_modulus(seed: &[u8]) -> BigInt256 {
 ///
 /// This is the core of time-lock puzzles.
 /// Takes exactly t sequential squarings - cannot be parallelized.
-pub fn sequential_square(
-    base: &BigInt256,
-    iterations: u64,
-    modulus: &BigInt256,
-) -> BigInt256 {
+pub fn sequential_square(base: &BigInt256, iterations: u64, modulus: &BigInt256) -> BigInt256 {
     let mut result = base.clone();
 
     for _ in 0..iterations {
@@ -411,8 +409,14 @@ mod tests {
 
     #[test]
     fn test_sequential_square() {
-        let base = BigInt256::from_bytes(&[7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-        let modulus = BigInt256::from_bytes(&[251, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 127]);
+        let base = BigInt256::from_bytes(&[
+            7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0,
+        ]);
+        let modulus = BigInt256::from_bytes(&[
+            251, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+            255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 127,
+        ]);
 
         // x^(2^10) with small modulus
         let result = sequential_square(&base, 10, &modulus);
@@ -453,7 +457,7 @@ mod tests {
     #[test]
     fn test_timelock_puzzle() {
         let params = TimeLockParams {
-            iterations: 100,  // Small for testing
+            iterations: 100, // Small for testing
             modulus_bits: 256,
         };
 

@@ -298,7 +298,7 @@ mod tests {
         let mps = MPS::new(5, 8);
         let profile = entropy_profile(&mps);
         assert_eq!(profile.len(), 4); // n-1 bonds
-        // Product state should have zero entropy at all bonds
+                                      // Product state should have zero entropy at all bonds
         for e in profile {
             assert!(e.abs() < EPSILON);
         }

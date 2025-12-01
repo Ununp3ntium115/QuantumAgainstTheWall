@@ -11,13 +11,13 @@
 //! A 1M qubit quantum computer has ~125KB usable memory and ~100μs coherence.
 //! This system requires GB of memory and seconds of sequential computation.
 
-use crate::crypto::argon2::{Argon2Params, argon2_hash};
-use crate::crypto::balloon::{BalloonParams, balloon_hash};
-use crate::crypto::timelock::hash_chain_lock;
+use crate::crypto::argon2::{argon2_hash, Argon2Params};
+use crate::crypto::balloon::{balloon_hash, BalloonParams};
 use crate::crypto::kdf::hash_sha256;
-use crate::crypto::symmetric::{encrypt, decrypt, SymmetricAlgorithm, EncryptedData};
 use crate::crypto::rng::QuantumRng;
-use crate::crypto::{CryptoResult, CryptoError, SecretKey, Zeroize};
+use crate::crypto::symmetric::{decrypt, encrypt, EncryptedData, SymmetricAlgorithm};
+use crate::crypto::timelock::hash_chain_lock;
+use crate::crypto::{CryptoError, CryptoResult, SecretKey, Zeroize};
 
 /// Fortress security level
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -129,11 +129,7 @@ pub struct FortressKey {
 
 impl FortressKey {
     /// Derive keys from password using fortress hardening
-    pub fn derive(
-        password: &[u8],
-        salt: &[u8],
-        config: &FortressConfig,
-    ) -> CryptoResult<Self> {
+    pub fn derive(password: &[u8], salt: &[u8], config: &FortressConfig) -> CryptoResult<Self> {
         let mut key_material = password.to_vec();
 
         // Stage 1: Argon2id (memory wall)

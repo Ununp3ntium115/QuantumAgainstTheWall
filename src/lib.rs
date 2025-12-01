@@ -39,8 +39,8 @@ pub mod wasm;
 
 // Re-export main types and functions
 pub use crypto::{
-    CryptoError, CryptoResult, DerivedKey, EncryptionKey, KeyPair, PublicKey, QuantumRng,
-    SecretKey, Zeroize, derive_key, decrypt, encrypt,
+    decrypt, derive_key, encrypt, CryptoError, CryptoResult, DerivedKey, EncryptionKey, KeyPair,
+    PublicKey, QuantumRng, SecretKey, Zeroize,
 };
 pub use entropy::{
     augmented_entropy, average_entanglement_entropy, bond_entropy, entanglement_entropy,

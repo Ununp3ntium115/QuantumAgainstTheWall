@@ -80,11 +80,7 @@ impl MPS {
 
         for i in 0..n_sites {
             // Bond dimensions grow from edges to center, capped at bond_dim
-            let left_dim = if i == 0 {
-                1
-            } else {
-                capped_pow(i)
-            };
+            let left_dim = if i == 0 { 1 } else { capped_pow(i) };
 
             let right_dim = if i == n_sites - 1 {
                 1

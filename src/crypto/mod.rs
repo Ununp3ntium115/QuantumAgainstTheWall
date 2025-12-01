@@ -31,32 +31,32 @@
 //! └─────────────────────────────────────────────────────────────────┘
 //! ```
 
+pub mod kdf;
 pub mod keys;
 pub mod rng;
 pub mod symmetric;
-pub mod kdf;
 
 // Hardening modules for quantum resistance
 pub mod argon2;
 pub mod balloon;
-pub mod bandwidth;    // NEW: Bandwidth-hard functions
-pub mod multihash;    // NEW: Multi-hash support
-pub mod timelock;
+pub mod bandwidth; // NEW: Bandwidth-hard functions
 pub mod fortress;
+pub mod multihash; // NEW: Multi-hash support
+pub mod timelock;
 
 // Re-exports
-pub use keys::{SecretKey, PublicKey, KeyPair, EncryptionKey};
-pub use rng::QuantumRng;
-pub use symmetric::{encrypt, decrypt, EncryptedData};
 pub use kdf::{derive_key, DerivedKey};
+pub use keys::{EncryptionKey, KeyPair, PublicKey, SecretKey};
+pub use rng::QuantumRng;
+pub use symmetric::{decrypt, encrypt, EncryptedData};
 
 // Hardening re-exports
-pub use argon2::{Argon2Params, Argon2Key, argon2_hash};
-pub use balloon::{BalloonParams, BalloonKey, balloon_hash};
-pub use bandwidth::{BandwidthParams, BandwidthKey, bandwidth_hard_hash};  // NEW
-pub use multihash::{MultiHashMode, multi_hash, multi_hash_kdf, MultiHashKey};  // NEW
-pub use timelock::{TimeLockParams, TimeLockPuzzle, hash_chain_lock};
-pub use fortress::{QuantumFortress, FortressConfig, FortressLevel, FortressData, FortressKey};
+pub use argon2::{argon2_hash, Argon2Key, Argon2Params};
+pub use balloon::{balloon_hash, BalloonKey, BalloonParams};
+pub use bandwidth::{bandwidth_hard_hash, BandwidthKey, BandwidthParams}; // NEW
+pub use fortress::{FortressConfig, FortressData, FortressKey, FortressLevel, QuantumFortress};
+pub use multihash::{multi_hash, multi_hash_kdf, MultiHashKey, MultiHashMode}; // NEW
+pub use timelock::{hash_chain_lock, TimeLockParams, TimeLockPuzzle};
 
 /// Cryptographic error types
 #[derive(Debug, Clone, PartialEq)]
@@ -77,6 +77,10 @@ pub enum CryptoError {
     InsufficientEntropy,
     /// Key exchange failed
     KeyExchangeFailed,
+    /// Nonce budget exhausted
+    NonceExhausted,
+    /// Replay detected
+    ReplayDetected,
 }
 
 impl std::fmt::Display for CryptoError {
@@ -90,6 +94,8 @@ impl std::fmt::Display for CryptoError {
             CryptoError::KeyDerivationFailed => write!(f, "Key derivation failed"),
             CryptoError::InsufficientEntropy => write!(f, "Insufficient entropy"),
             CryptoError::KeyExchangeFailed => write!(f, "Key exchange failed"),
+            CryptoError::NonceExhausted => write!(f, "Nonce space exhausted"),
+            CryptoError::ReplayDetected => write!(f, "Replay detected"),
         }
     }
 }
