@@ -32,9 +32,9 @@ pub struct BandwidthParams {
 impl Default for BandwidthParams {
     fn default() -> Self {
         Self {
-            space_cost: 1048576,      // 64 MB (1M blocks * 64 bytes)
-            time_cost: 4,              // 4 rounds
-            bandwidth_cost: 100000,    // 100K random accesses per round
+            space_cost: 1048576,    // 64 MB (1M blocks * 64 bytes)
+            time_cost: 4,           // 4 rounds
+            bandwidth_cost: 100000, // 100K random accesses per round
             output_len: 32,
         }
     }
@@ -44,9 +44,9 @@ impl BandwidthParams {
     /// Maximum quantum pain (1 GB, extreme bandwidth usage)
     pub fn quantum_fortress() -> Self {
         Self {
-            space_cost: 16777216,     // 1 GB (16M blocks * 64 bytes)
-            time_cost: 8,              // 8 rounds
-            bandwidth_cost: 1000000,   // 1M random accesses = massive bandwidth
+            space_cost: 16777216,    // 1 GB (16M blocks * 64 bytes)
+            time_cost: 8,            // 8 rounds
+            bandwidth_cost: 1000000, // 1M random accesses = massive bandwidth
             output_len: 32,
         }
     }
@@ -54,9 +54,9 @@ impl BandwidthParams {
     /// High security (256 MB, high bandwidth)
     pub fn high_security() -> Self {
         Self {
-            space_cost: 4194304,       // 256 MB
+            space_cost: 4194304, // 256 MB
             time_cost: 6,
-            bandwidth_cost: 500000,    // 500K accesses
+            bandwidth_cost: 500000, // 500K accesses
             output_len: 32,
         }
     }
@@ -69,9 +69,9 @@ impl BandwidthParams {
     /// Interactive (16 MB, lower bandwidth)
     pub fn interactive() -> Self {
         Self {
-            space_cost: 262144,        // 16 MB
+            space_cost: 262144, // 16 MB
             time_cost: 2,
-            bandwidth_cost: 50000,     // 50K accesses
+            bandwidth_cost: 50000, // 50K accesses
             output_len: 32,
         }
     }
@@ -292,7 +292,7 @@ pub fn bandwidth_hard_hash_enhanced(
             let idx1 = hash_to_index(&idx_seed, n);
             let idx2 = hash_to_index(&hash_sha256(&memory[idx1].data), n);
             let idx3 = hash_to_index(&hash_sha256(&memory[idx2].data), n);
-            let idx4 = hash_to_index(&hash_sha256(&memory[idx3].data), n);  // 4th read!
+            let idx4 = hash_to_index(&hash_sha256(&memory[idx3].data), n); // 4th read!
 
             let mut mixed = memory[idx1].clone();
             mixed.xor_with(&memory[idx2]);
@@ -348,11 +348,7 @@ pub struct BandwidthKey {
 }
 
 impl BandwidthKey {
-    pub fn derive(
-        password: &[u8],
-        salt: &[u8],
-        params: &BandwidthParams,
-    ) -> CryptoResult<Self> {
+    pub fn derive(password: &[u8], salt: &[u8], params: &BandwidthParams) -> CryptoResult<Self> {
         let key = bandwidth_hard_hash(password, salt, params)?;
         Ok(Self { key })
     }
@@ -386,7 +382,7 @@ mod tests {
         let password = b"password";
         let salt = b"somesalt";
         let params = BandwidthParams {
-            space_cost: 1024,  // Small for testing (64 KB)
+            space_cost: 1024, // Small for testing (64 KB)
             time_cost: 1,
             bandwidth_cost: 100,
             output_len: 32,
@@ -459,7 +455,13 @@ mod tests {
         assert!(params.bandwidth_usage() > 1024 * 1024 * 1024); // > 1 GB traffic
 
         println!("Memory: {} MB", params.memory_usage() / (1024 * 1024));
-        println!("Bandwidth: {} GB", params.bandwidth_usage() / (1024 * 1024 * 1024));
-        println!("Estimated time: {:.2} seconds", params.estimated_time_seconds());
+        println!(
+            "Bandwidth: {} GB",
+            params.bandwidth_usage() / (1024 * 1024 * 1024)
+        );
+        println!(
+            "Estimated time: {:.2} seconds",
+            params.estimated_time_seconds()
+        );
     }
 }

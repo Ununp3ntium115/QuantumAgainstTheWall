@@ -80,11 +80,7 @@ impl MPS {
 
         for i in 0..n_sites {
             // Bond dimensions grow from edges to center, capped at bond_dim
-            let left_dim = if i == 0 {
-                1
-            } else {
-                capped_pow(i)
-            };
+            let left_dim = if i == 0 { 1 } else { capped_pow(i) };
 
             let right_dim = if i == n_sites - 1 {
                 1
@@ -210,7 +206,8 @@ impl MPS {
     }
 
     /// Update singular values at a bond
-    pub(crate) fn set_singular_values(&mut self, bond: usize, values: Vec<f64>) {
+    /// Override the singular values at a given bond (primarily for tests and demos).
+    pub fn set_singular_values(&mut self, bond: usize, values: Vec<f64>) {
         if bond < self.bond_singular_values.len() {
             self.bond_singular_values[bond] = values;
         }

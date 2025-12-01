@@ -133,10 +133,10 @@ fn quantum_hash_simple(input: &[u8]) -> [u8; 32] {
 
 /// Multi-hash combination
 pub fn multi_hash(input: &[u8], mode: MultiHashMode) -> [u8; 32] {
-    let h1 = hash_sha256(input);              // SHA-256
-    let h2 = sha3_256_simple(input);          // SHA-3-like
-    let h3 = blake3_simple(input);            // BLAKE3-like
-    let h4 = quantum_hash_simple(input);      // Custom quantum hash
+    let h1 = hash_sha256(input); // SHA-256
+    let h2 = sha3_256_simple(input); // SHA-3-like
+    let h3 = blake3_simple(input); // BLAKE3-like
+    let h4 = quantum_hash_simple(input); // Custom quantum hash
 
     match mode {
         MultiHashMode::Xor => {
@@ -185,12 +185,7 @@ pub fn multi_hash(input: &[u8], mode: MultiHashMode) -> [u8; 32] {
 /// Multi-hash key derivation
 ///
 /// Derives a key using all hash functions for maximum security
-pub fn multi_hash_kdf(
-    password: &[u8],
-    salt: &[u8],
-    iterations: u64,
-    output_len: usize,
-) -> Vec<u8> {
+pub fn multi_hash_kdf(password: &[u8], salt: &[u8], iterations: u64, output_len: usize) -> Vec<u8> {
     let mut current = multi_hash(&[password, salt].concat(), MultiHashMode::Ultimate);
 
     // Iterate for additional security
@@ -332,7 +327,11 @@ mod tests {
         assert!(multi_hash_verify(data, &hash, MultiHashMode::Ultimate));
 
         // Wrong data should fail
-        assert!(!multi_hash_verify(b"wrong data", &hash, MultiHashMode::Ultimate));
+        assert!(!multi_hash_verify(
+            b"wrong data",
+            &hash,
+            MultiHashMode::Ultimate
+        ));
 
         // Wrong mode should fail
         assert!(!multi_hash_verify(data, &hash, MultiHashMode::Xor));

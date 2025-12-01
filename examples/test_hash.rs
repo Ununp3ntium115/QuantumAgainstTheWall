@@ -1,9 +1,9 @@
 //! Test script to generate hash for "quantumhashingisimpossible"
 
-use quantum_wall::crypto::argon2::{Argon2Params, argon2_hash};
-use quantum_wall::crypto::balloon::{BalloonParams, balloon_hash};
-use quantum_wall::crypto::timelock::hash_chain_lock;
+use quantum_wall::crypto::argon2::{argon2_hash, Argon2Params};
+use quantum_wall::crypto::balloon::{balloon_hash, BalloonParams};
 use quantum_wall::crypto::kdf::hash_sha256;
+use quantum_wall::crypto::timelock::hash_chain_lock;
 
 fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{:02x}", b)).collect()

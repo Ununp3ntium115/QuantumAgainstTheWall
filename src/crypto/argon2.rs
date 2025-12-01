@@ -39,10 +39,10 @@ pub struct Argon2Params {
 impl Default for Argon2Params {
     fn default() -> Self {
         Self {
-            memory_cost: 65536,    // 64 MB
-            time_cost: 3,          // 3 iterations
-            parallelism: 4,        // 4 lanes
-            output_len: 32,        // 256-bit output
+            memory_cost: 65536, // 64 MB
+            time_cost: 3,       // 3 iterations
+            parallelism: 4,     // 4 lanes
+            output_len: 32,     // 256-bit output
             variant: Argon2Variant::Argon2id,
         }
     }
@@ -52,9 +52,9 @@ impl Argon2Params {
     /// Create params for maximum quantum pain (1 GB memory)
     pub fn quantum_fortress() -> Self {
         Self {
-            memory_cost: 1048576,  // 1 GB
-            time_cost: 4,          // 4 iterations
-            parallelism: 4,        // 4 lanes
+            memory_cost: 1048576, // 1 GB
+            time_cost: 4,         // 4 iterations
+            parallelism: 4,       // 4 lanes
             output_len: 32,
             variant: Argon2Variant::Argon2id,
         }
@@ -63,7 +63,7 @@ impl Argon2Params {
     /// Create params for high security (256 MB memory)
     pub fn high_security() -> Self {
         Self {
-            memory_cost: 262144,   // 256 MB
+            memory_cost: 262144, // 256 MB
             time_cost: 3,
             parallelism: 4,
             output_len: 32,
@@ -79,7 +79,7 @@ impl Argon2Params {
     /// Create params for interactive use (faster, 16 MB)
     pub fn interactive() -> Self {
         Self {
-            memory_cost: 16384,    // 16 MB
+            memory_cost: 16384, // 16 MB
             time_cost: 2,
             parallelism: 4,
             output_len: 32,
@@ -157,11 +157,7 @@ impl Zeroize for Memory {
 }
 
 /// Derive a key using Argon2id
-pub fn argon2_hash(
-    password: &[u8],
-    salt: &[u8],
-    params: &Argon2Params,
-) -> CryptoResult<Vec<u8>> {
+pub fn argon2_hash(password: &[u8], salt: &[u8], params: &Argon2Params) -> CryptoResult<Vec<u8>> {
     if salt.len() < 8 {
         return Err(CryptoError::InvalidNonceLength);
     }
@@ -227,52 +223,36 @@ pub fn argon2_hash(
 
 /// Generate initial hash H0
 fn initial_hash(password: &[u8], salt: &[u8], params: &Argon2Params) -> Vec<u8> {
-    let mut input = Vec::new();
+    use blake2::Digest;
+    let mut hasher = blake2::Blake2b512::new();
 
-    // H0 = H(p, s, t, m, lanes, version, type, taglen, P, S, K, X)
-    input.extend_from_slice(&(params.parallelism).to_le_bytes());
-    input.extend_from_slice(&(params.output_len as u32).to_le_bytes());
-    input.extend_from_slice(&(params.memory_cost).to_le_bytes());
-    input.extend_from_slice(&(params.time_cost).to_le_bytes());
-    input.extend_from_slice(&0x13u32.to_le_bytes()); // Version 0x13
-    input.extend_from_slice(&(params.variant as u32).to_le_bytes());
-    input.extend_from_slice(&(password.len() as u32).to_le_bytes());
-    input.extend_from_slice(password);
-    input.extend_from_slice(&(salt.len() as u32).to_le_bytes());
-    input.extend_from_slice(salt);
-    input.extend_from_slice(&0u32.to_le_bytes()); // No secret key
-    input.extend_from_slice(&0u32.to_le_bytes()); // No associated data
+    // H0 = BLAKE2b(version | type | params | pwd | salt | secret | ad)
+    hasher.update(&(params.parallelism).to_le_bytes());
+    hasher.update(&(params.output_len as u32).to_le_bytes());
+    hasher.update(&(params.memory_cost).to_le_bytes());
+    hasher.update(&(params.time_cost).to_le_bytes());
+    hasher.update(&0x13u32.to_le_bytes()); // Version 0x13
+    hasher.update(&(params.variant as u32).to_le_bytes());
+    hasher.update(&(password.len() as u32).to_le_bytes());
+    hasher.update(password);
+    hasher.update(&(salt.len() as u32).to_le_bytes());
+    hasher.update(salt);
+    hasher.update(&0u32.to_le_bytes()); // No secret key
+    hasher.update(&0u32.to_le_bytes()); // No associated data
 
-    variable_hash(&input, 64)
+    hasher.finalize().to_vec()
 }
 
-/// Variable-length hash using Blake2b-style construction
+/// Variable-length hash using BLAKE2b per RFC 9106
 fn variable_hash(input: &[u8], out_len: usize) -> Vec<u8> {
-    if out_len <= 64 {
-        // Single hash
-        let mut data = (out_len as u32).to_le_bytes().to_vec();
-        data.extend_from_slice(input);
-        let hash = hash_sha256(&data);
-        hash[..out_len.min(32)].to_vec()
-    } else {
-        // Extended hash
-        let mut output = Vec::with_capacity(out_len);
-        let mut v = (out_len as u32).to_le_bytes().to_vec();
-        v.extend_from_slice(input);
-
-        let r = (out_len + 31) / 32;
-        for i in 0..r {
-            let h = hash_sha256(&v);
-            if i < r - 1 {
-                output.extend_from_slice(&h);
-                v = h.to_vec();
-            } else {
-                let remaining = out_len - output.len();
-                output.extend_from_slice(&h[..remaining]);
-            }
-        }
-        output
-    }
+    use blake2::digest::{Update, VariableOutput};
+    use blake2::VarBlake2b;
+    let mut hasher = VarBlake2b::new(out_len).expect("invalid blake2 length");
+    hasher.update(&(out_len as u32).to_le_bytes());
+    hasher.update(input);
+    let mut out = vec![0u8; out_len];
+    hasher.finalize_variable(|res| out.copy_from_slice(res));
+    out
 }
 
 /// Fill a block from bytes
@@ -298,13 +278,7 @@ fn block_to_bytes(block: &Block) -> Vec<u8> {
 }
 
 /// Fill a segment of memory
-fn fill_segment(
-    memory: &mut Memory,
-    pass: u32,
-    lane: u32,
-    slice: u32,
-    params: &Argon2Params,
-) {
+fn fill_segment(memory: &mut Memory, pass: u32, lane: u32, slice: u32, params: &Argon2Params) {
     let segment_length = memory.lane_length / SYNC_POINTS;
     let start_index = if pass == 0 && slice == 0 { 2 } else { 0 };
 
@@ -323,9 +297,8 @@ fn fill_segment(
         let j2 = prev_block.data[1];
 
         // Compute reference block position
-        let (ref_lane, ref_index) = compute_ref_position(
-            j1, j2, pass, lane, slice, index, memory.lane_length, params,
-        );
+        let (ref_lane, ref_index) =
+            compute_ref_position(j1, j2, pass, lane, slice, index, memory.lane_length, params);
 
         // Get reference block
         let ref_block = memory.get(ref_lane, ref_index).clone();

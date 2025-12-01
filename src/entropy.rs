@@ -269,6 +269,17 @@ mod tests {
     }
 
     #[test]
+    fn bond_entropy_is_invariant_under_global_scaling() {
+        let base = vec![0.8, 0.6, 0.1];
+        let scaled: Vec<f64> = base.iter().map(|v| v * 3.7).collect();
+
+        let entropy_base = bond_entropy(&base);
+        let entropy_scaled = bond_entropy(&scaled);
+
+        assert!((entropy_base - entropy_scaled).abs() < 1e-12);
+    }
+
+    #[test]
     fn test_max_entropy_bound() {
         let bound = max_entropy_bound(64, 100);
         let expected = 99.0 * 64.0_f64.log2();
@@ -285,6 +296,17 @@ mod tests {
     }
 
     #[test]
+    fn renyi_entropy_respects_scaling_invariance() {
+        let singular_values = vec![0.7, 0.5, 0.4];
+        let scaled: Vec<f64> = singular_values.iter().map(|v| v * 2.5).collect();
+
+        let renyi_base = renyi_entropy(&singular_values, 0.8);
+        let renyi_scaled = renyi_entropy(&scaled, 0.8);
+
+        assert!((renyi_base - renyi_scaled).abs() < 1e-12);
+    }
+
+    #[test]
     fn test_augmented_entropy() {
         let mps = MPS::new(100, 32);
         let aug = augmented_entropy(&mps);
@@ -294,11 +316,71 @@ mod tests {
     }
 
     #[test]
+    fn aggregate_measures_remain_consistent() {
+        let mut mps = MPS::new(3, 4);
+
+        // Inject non-trivial spectra at both bonds to exercise the helpers
+        mps.set_singular_values(0, vec![0.8, 0.6]);
+        mps.set_singular_values(1, vec![0.9, 0.1]);
+
+        let profile = entropy_profile(&mps);
+        assert_eq!(profile.len(), 2);
+
+        let total = total_entanglement_entropy(&mps);
+        let average = average_entanglement_entropy(&mps);
+        let augmented = augmented_entropy(&mps);
+
+        // Total entropy should equal the sum of the profile entries
+        let summed_profile: f64 = profile.iter().sum();
+        assert!((total - summed_profile).abs() < 1e-12);
+
+        // Average entropy should normalize by the number of bonds (n-1 = 2)
+        assert!((average - total / 2.0).abs() < 1e-12);
+
+        // Augmented entropy should add π n² on top of the total contribution
+        let expected_augmented = total + PI * (mps.n_sites() as f64).powi(2);
+        assert!((augmented - expected_augmented).abs() < 1e-12);
+    }
+
+    #[test]
+    fn aggregate_measures_are_invariant_under_uniform_scaling() {
+        let mut mps = MPS::new(4, 4);
+        mps.set_singular_values(0, vec![0.8, 0.6]);
+        mps.set_singular_values(1, vec![0.7, 0.2]);
+        mps.set_singular_values(2, vec![0.5, 0.4]);
+
+        let mut scaled = MPS::new(4, 4);
+        let factor = 3.3;
+        scaled.set_singular_values(0, vec![0.8 * factor, 0.6 * factor]);
+        scaled.set_singular_values(1, vec![0.7 * factor, 0.2 * factor]);
+        scaled.set_singular_values(2, vec![0.5 * factor, 0.4 * factor]);
+
+        let profile = entropy_profile(&mps);
+        let profile_scaled = entropy_profile(&scaled);
+        assert_eq!(profile.len(), profile_scaled.len());
+        for (a, b) in profile.iter().zip(profile_scaled.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+
+        let total = total_entanglement_entropy(&mps);
+        let total_scaled = total_entanglement_entropy(&scaled);
+        assert!((total - total_scaled).abs() < 1e-12);
+
+        let average = average_entanglement_entropy(&mps);
+        let average_scaled = average_entanglement_entropy(&scaled);
+        assert!((average - average_scaled).abs() < 1e-12);
+
+        let augmented = augmented_entropy(&mps);
+        let augmented_scaled = augmented_entropy(&scaled);
+        assert!((augmented - augmented_scaled).abs() < 1e-12);
+    }
+
+    #[test]
     fn test_entropy_profile() {
         let mps = MPS::new(5, 8);
         let profile = entropy_profile(&mps);
         assert_eq!(profile.len(), 4); // n-1 bonds
-        // Product state should have zero entropy at all bonds
+                                      // Product state should have zero entropy at all bonds
         for e in profile {
             assert!(e.abs() < EPSILON);
         }
