@@ -42,6 +42,7 @@ pub mod balloon;
 pub mod bandwidth; // NEW: Bandwidth-hard functions
 pub mod fortress;
 pub mod multihash; // NEW: Multi-hash support
+pub mod pqc; // NEW: Post-Quantum Cryptography (NIST FIPS 203/204)
 pub mod timelock;
 
 // Re-exports
@@ -57,6 +58,12 @@ pub use bandwidth::{bandwidth_hard_hash, BandwidthKey, BandwidthParams}; // NEW
 pub use fortress::{FortressConfig, FortressData, FortressKey, FortressLevel, QuantumFortress};
 pub use multihash::{multi_hash, multi_hash_kdf, MultiHashKey, MultiHashMode}; // NEW
 pub use timelock::{hash_chain_lock, TimeLockParams, TimeLockPuzzle};
+
+// Post-Quantum Cryptography re-exports (NIST standards)
+pub use pqc::{
+    MlKemKeypair, MlKemPublicKey, MlKemSecretKey, MlKemSecurityLevel,
+    MlDsaSigningKey, MlDsaVerificationKey, MlDsaSecurityLevel,
+};
 
 /// Cryptographic error types
 #[derive(Debug, Clone, PartialEq)]
