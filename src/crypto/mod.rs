@@ -49,7 +49,7 @@ pub mod timelock;
 pub use kdf::{derive_key, DerivedKey};
 pub use keys::{EncryptionKey, KeyPair, PublicKey, SecretKey};
 pub use rng::QuantumRng;
-pub use symmetric::{decrypt, encrypt, EncryptedData};
+pub use symmetric::{decrypt, encrypt, EncryptedData, SymmetricAlgorithm};
 
 // Hardening re-exports
 pub use argon2::{argon2_hash, Argon2Key, Argon2Params};

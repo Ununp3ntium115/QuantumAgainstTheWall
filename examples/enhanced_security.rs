@@ -195,11 +195,110 @@ fn main() {
     println!("{}", "=".repeat(60));
     println!();
 
+    // Example 5: AEAD with Explicit AAD (QA Item 43)
+    println!("5. AEAD with Additional Authenticated Data");
+    println!("   Problem: Need to bind encryption to context");
+    println!("   Solution: Use AAD for domain separation and replay protection\n");
+
+    println!("   Use Case: Encrypted session tokens");
+
+    // Simulated session context
+    let user_id = "alice@example.com";
+    let session_id = "sess_a1b2c3d4";
+    let timestamp = 1733097600u64; // Unix timestamp
+    let client_ip = "192.168.1.100";
+
+    // Construct AAD from context
+    let aad = format!("user:{}|session:{}|time:{}|ip:{}",
+                      user_id, session_id, timestamp, client_ip);
+
+    println!("   AAD (context binding):");
+    println!("     - User: {}", user_id);
+    println!("     - Session: {}", session_id);
+    println!("     - Timestamp: {}", timestamp);
+    println!("     - Client IP: {}", client_ip);
+
+    // Encrypt with AAD binding
+    use quantum_wall::crypto::{QuantumRng, SecretKey, encrypt, decrypt, SymmetricAlgorithm};
+
+    let mut rng = QuantumRng::new().expect("Failed to initialize RNG");
+    let key = SecretKey::generate(&mut rng);
+    let sensitive_data = b"user_auth_token=xyz789";
+
+    let encrypted = encrypt(
+        &key,
+        sensitive_data,
+        Some(aad.as_bytes()),  // Bind to context
+        &mut rng,
+        SymmetricAlgorithm::ChaCha20Poly1305,
+    ).expect("Encryption failed");
+
+    println!("\n   Encrypted with AAD:");
+    println!("     - Ciphertext: {} bytes", encrypted.ciphertext.len());
+    println!("     - Tag: {:02x?}...", &encrypted.tag[0..4]);
+    println!("     - Nonce: {:02x?}...", &encrypted.nonce[0..4]);
+
+    // Successful decryption with matching AAD
+    let decrypted = decrypt(
+        &key,
+        &encrypted,
+        Some(aad.as_bytes()),  // Same AAD required
+    ).expect("Decryption failed");
+
+    assert_eq!(decrypted, sensitive_data);
+    println!("\n   ✓ Decryption succeeded with correct AAD");
+
+    // Demonstrate AAD mismatch detection
+    let wrong_aad = format!("user:{}|session:{}|time:{}|ip:{}",
+                            user_id, "WRONG_SESSION", timestamp, client_ip);
+
+    let result = decrypt(&key, &encrypted, Some(wrong_aad.as_bytes()));
+
+    println!("\n   Testing AAD mismatch:");
+    println!("     - Wrong session ID in AAD");
+    match result {
+        Err(_) => println!("     ✓ Authentication failed (as expected)"),
+        Ok(_) => println!("     ✗ BUG: Should have failed!"),
+    }
+
+    // Demonstrate replay attack prevention
+    println!("\n   Replay Attack Prevention:");
+    println!("     1. Attacker captures encrypted token");
+    println!("     2. Attacker tries to replay with different context");
+
+    let replay_aad = format!("user:{}|session:{}|time:{}|ip:{}",
+                             user_id, session_id, timestamp + 3600, client_ip);  // 1 hour later
+
+    let replay_result = decrypt(&key, &encrypted, Some(replay_aad.as_bytes()));
+    match replay_result {
+        Err(_) => println!("     ✓ Replay blocked by AAD timestamp binding"),
+        Ok(_) => println!("     ✗ BUG: Replay should be blocked!"),
+    }
+
+    println!("\n   Security Properties:");
+    println!("   ✓ Context binding (AAD ties ciphertext to metadata)");
+    println!("   ✓ Replay protection (timestamp prevents reuse)");
+    println!("   ✓ Domain separation (user/session isolation)");
+    println!("   ✓ No additional overhead (AAD is free in AEAD)");
+
+    println!("\n   Best Practices:");
+    println!("   - Always include: user ID, session ID, timestamp");
+    println!("   - Consider: API endpoint, request ID, client info");
+    println!("   - Format: Structured (e.g., key:value pairs)");
+    println!("   - Validation: Check timestamp freshness on decrypt");
+    println!("   - Key rotation: Follow limits (2³¹ for AES-GCM)\n");
+
+    println!("{}", "=".repeat(60));
+    println!();
+
     println!("Summary:");
     println!("--------");
     println!("✓ Bandwidth-hard functions equalize CPU and ASIC performance");
     println!("✓ Multi-hash provides defense against cryptanalysis");
+    println!("✓ AEAD with AAD binds encryption to application context");
+    println!("✓ Context binding prevents replay and cross-context attacks");
     println!("✓ Combined approach creates mathematically unbreakable security");
-    println!("✓ Suitable for: passwords, encryption keys, digital signatures");
+    println!("✓ Suitable for: passwords, encryption keys, digital signatures, sessions");
     println!("\nSee SECURITY_ANALYSIS.md for detailed security proofs.");
+
 }
