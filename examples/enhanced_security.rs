@@ -4,8 +4,8 @@
 //! features for maximum security.
 
 use quantum_wall::crypto::{
-    BandwidthParams, BandwidthKey, bandwidth_hard_hash,
-    MultiHashMode, multi_hash, multi_hash_kdf, MultiHashKey,
+    bandwidth_hard_hash, multi_hash, multi_hash_kdf, BandwidthKey, BandwidthParams, MultiHashKey,
+    MultiHashMode,
 };
 
 fn main() {
@@ -22,38 +22,74 @@ fn main() {
     // Interactive mode (fast, for user login)
     let params_interactive = BandwidthParams::interactive();
     println!("   Interactive Mode:");
-    println!("   - Memory: {} MB", params_interactive.memory_usage() / (1024 * 1024));
-    println!("   - Bandwidth: {} MB traffic", params_interactive.bandwidth_usage() / (1024 * 1024));
-    println!("   - Time: ~{:.2}s", params_interactive.estimated_time_seconds());
+    println!(
+        "   - Memory: {} MB",
+        params_interactive.memory_usage() / (1024 * 1024)
+    );
+    println!(
+        "   - Bandwidth: {} MB traffic",
+        params_interactive.bandwidth_usage() / (1024 * 1024)
+    );
+    println!(
+        "   - Time: ~{:.2}s",
+        params_interactive.estimated_time_seconds()
+    );
 
     let start = std::time::Instant::now();
     let key_interactive = BandwidthKey::derive(password, salt, &params_interactive).unwrap();
     let elapsed = start.elapsed();
     println!("   - Actual time: {:.3}s", elapsed.as_secs_f64());
-    println!("   - Key (first 16 bytes): {:02x?}\n", &key_interactive.as_bytes()[0..16]);
+    println!(
+        "   - Key (first 16 bytes): {:02x?}\n",
+        &key_interactive.as_bytes()[0..16]
+    );
 
     // Standard mode (good security)
     let params_standard = BandwidthParams::moderate();
     println!("   Standard Mode:");
-    println!("   - Memory: {} MB", params_standard.memory_usage() / (1024 * 1024));
-    println!("   - Bandwidth: {} MB traffic", params_standard.bandwidth_usage() / (1024 * 1024));
-    println!("   - Time: ~{:.2}s", params_standard.estimated_time_seconds());
+    println!(
+        "   - Memory: {} MB",
+        params_standard.memory_usage() / (1024 * 1024)
+    );
+    println!(
+        "   - Bandwidth: {} MB traffic",
+        params_standard.bandwidth_usage() / (1024 * 1024)
+    );
+    println!(
+        "   - Time: ~{:.2}s",
+        params_standard.estimated_time_seconds()
+    );
     println!("   (Skipping actual computation - would take ~2 seconds)\n");
 
     // High security mode
     let params_high = BandwidthParams::high_security();
     println!("   High Security Mode:");
-    println!("   - Memory: {} MB", params_high.memory_usage() / (1024 * 1024));
-    println!("   - Bandwidth: {} GB traffic", params_high.bandwidth_usage() / (1024 * 1024 * 1024));
+    println!(
+        "   - Memory: {} MB",
+        params_high.memory_usage() / (1024 * 1024)
+    );
+    println!(
+        "   - Bandwidth: {} GB traffic",
+        params_high.bandwidth_usage() / (1024 * 1024 * 1024)
+    );
     println!("   - Time: ~{:.2}s", params_high.estimated_time_seconds());
     println!("   (Skipping actual computation - would take ~6 seconds)\n");
 
     // Quantum fortress (maximum security)
     let params_quantum = BandwidthParams::quantum_fortress();
     println!("   Quantum Fortress Mode:");
-    println!("   - Memory: {} GB", params_quantum.memory_usage() / (1024 * 1024 * 1024));
-    println!("   - Bandwidth: {} GB traffic", params_quantum.bandwidth_usage() / (1024 * 1024 * 1024));
-    println!("   - Time: ~{:.2}s", params_quantum.estimated_time_seconds());
+    println!(
+        "   - Memory: {} GB",
+        params_quantum.memory_usage() / (1024 * 1024 * 1024)
+    );
+    println!(
+        "   - Bandwidth: {} GB traffic",
+        params_quantum.bandwidth_usage() / (1024 * 1024 * 1024)
+    );
+    println!(
+        "   - Time: ~{:.2}s",
+        params_quantum.estimated_time_seconds()
+    );
     println!("   (Skipping actual computation - would take ~24 seconds)");
     println!("   → ASICs gain NO advantage (bandwidth-limited)\n");
 
@@ -108,7 +144,10 @@ fn main() {
     let elapsed = start.elapsed();
 
     println!("   Parameters:");
-    println!("   - Password: {:?}", std::str::from_utf8(password_kdf).unwrap());
+    println!(
+        "   - Password: {:?}",
+        std::str::from_utf8(password_kdf).unwrap()
+    );
     println!("   - Salt: {:?}", std::str::from_utf8(salt_kdf).unwrap());
     println!("   - Iterations: {}", iterations);
     println!("   - Output length: 32 bytes");

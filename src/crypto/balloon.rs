@@ -31,10 +31,10 @@ pub struct BalloonParams {
 impl Default for BalloonParams {
     fn default() -> Self {
         Self {
-            space_cost: 65536,  // 2 MB (65536 * 32 bytes)
-            time_cost: 3,       // 3 rounds
-            delta: 4,           // 4 dependencies
-            output_len: 32,     // 256-bit output
+            space_cost: 65536, // 2 MB (65536 * 32 bytes)
+            time_cost: 3,      // 3 rounds
+            delta: 4,          // 4 dependencies
+            output_len: 32,    // 256-bit output
         }
     }
 }
@@ -43,7 +43,7 @@ impl BalloonParams {
     /// Maximum quantum pain (1 GB memory)
     pub fn quantum_fortress() -> Self {
         Self {
-            space_cost: 33554432,  // 1 GB (33554432 * 32 bytes)
+            space_cost: 33554432, // 1 GB (33554432 * 32 bytes)
             time_cost: 4,
             delta: 5,
             output_len: 32,
@@ -53,7 +53,7 @@ impl BalloonParams {
     /// High security (256 MB)
     pub fn high_security() -> Self {
         Self {
-            space_cost: 8388608,  // 256 MB
+            space_cost: 8388608, // 256 MB
             time_cost: 3,
             delta: 4,
             output_len: 32,
@@ -63,7 +63,7 @@ impl BalloonParams {
     /// Moderate security (64 MB)
     pub fn moderate() -> Self {
         Self {
-            space_cost: 2097152,  // 64 MB
+            space_cost: 2097152, // 64 MB
             time_cost: 3,
             delta: 4,
             output_len: 32,
@@ -73,7 +73,7 @@ impl BalloonParams {
     /// Interactive (16 MB)
     pub fn interactive() -> Self {
         Self {
-            space_cost: 524288,  // 16 MB
+            space_cost: 524288, // 16 MB
             time_cost: 2,
             delta: 3,
             output_len: 32,
@@ -115,11 +115,7 @@ fn int_to_bytes(v: u64) -> [u8; 8] {
 /// Based on the algorithm from:
 /// "Balloon Hashing: A Memory-Hard Function Providing Provable Protection
 ///  Against Sequential Attacks" - Boneh, Corrigan-Gibbs, Schechter
-pub fn balloon_hash(
-    password: &[u8],
-    salt: &[u8],
-    params: &BalloonParams,
-) -> CryptoResult<Vec<u8>> {
+pub fn balloon_hash(password: &[u8], salt: &[u8], params: &BalloonParams) -> CryptoResult<Vec<u8>> {
     let s = params.space_cost;
     let t = params.time_cost;
     let delta = params.delta;
@@ -145,11 +141,7 @@ pub fn balloon_hash(
             let prev = if m == 0 { s - 1 } else { m - 1 };
 
             // Compute new value: H(cnt || buf[prev] || buf[m])
-            let new_val = hash_multi(&[
-                &int_to_bytes(cnt),
-                &buf[prev],
-                &buf[m],
-            ]);
+            let new_val = hash_multi(&[&int_to_bytes(cnt), &buf[prev], &buf[m]]);
             buf[m] = new_val;
             cnt += 1;
 
@@ -169,11 +161,7 @@ pub fn balloon_hash(
                 let other = (u64::from_le_bytes(idx_bytes) as usize) % s;
 
                 // buf[m] = H(cnt || buf[m] || buf[other])
-                let mixed = hash_multi(&[
-                    &int_to_bytes(cnt),
-                    &buf[m],
-                    &buf[other],
-                ]);
+                let mixed = hash_multi(&[&int_to_bytes(cnt), &buf[m], &buf[other]]);
                 buf[m] = mixed;
                 cnt += 1;
             }
@@ -182,10 +170,7 @@ pub fn balloon_hash(
 
     // Step 3: Extract output
     // Output = H(cnt || buf[s-1])
-    let output = hash_multi(&[
-        &int_to_bytes(cnt),
-        &buf[s - 1],
-    ]);
+    let output = hash_multi(&[&int_to_bytes(cnt), &buf[s - 1]]);
 
     // Clear buffer
     for block in &mut buf {
@@ -224,12 +209,7 @@ pub fn balloon_m_hash(
             let prev = if m == 0 { s - 1 } else { m - 1 };
             let next = if m == s - 1 { 0 } else { m + 1 };
 
-            buf[m] = hash_multi(&[
-                &int_to_bytes(cnt),
-                &buf[prev],
-                &buf[m],
-                &buf[next],
-            ]);
+            buf[m] = hash_multi(&[&int_to_bytes(cnt), &buf[prev], &buf[m], &buf[next]]);
             cnt += 1;
 
             for i in 0..delta {
@@ -243,11 +223,7 @@ pub fn balloon_m_hash(
                 idx_bytes.copy_from_slice(&idx_input[0..8]);
                 let other = (u64::from_le_bytes(idx_bytes) as usize) % s;
 
-                buf[m] = hash_multi(&[
-                    &int_to_bytes(cnt),
-                    &buf[m],
-                    &buf[other],
-                ]);
+                buf[m] = hash_multi(&[&int_to_bytes(cnt), &buf[m], &buf[other]]);
                 cnt += 1;
             }
         }
@@ -256,11 +232,7 @@ pub fn balloon_m_hash(
         for m in (0..s).rev() {
             let prev = if m == 0 { s - 1 } else { m - 1 };
 
-            buf[m] = hash_multi(&[
-                &int_to_bytes(cnt),
-                &buf[prev],
-                &buf[m],
-            ]);
+            buf[m] = hash_multi(&[&int_to_bytes(cnt), &buf[prev], &buf[m]]);
             cnt += 1;
         }
     }
@@ -314,7 +286,7 @@ mod tests {
         let password = b"password";
         let salt = b"somesalt";
         let params = BalloonParams {
-            space_cost: 1024,  // Small for testing
+            space_cost: 1024, // Small for testing
             time_cost: 1,
             delta: 3,
             output_len: 32,

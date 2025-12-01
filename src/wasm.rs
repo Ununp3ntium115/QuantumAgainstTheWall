@@ -5,8 +5,8 @@
 
 use wasm_bindgen::prelude::*;
 
-use crate::crypto::{self, QuantumRng, SecretKey, EncryptedData};
 use crate::crypto::symmetric::SymmetricAlgorithm;
+use crate::crypto::{self, EncryptedData, QuantumRng, SecretKey};
 use crate::entropy;
 use crate::gates::{apply_single_gate, standard_gates};
 use crate::mps::MPS;
@@ -376,9 +376,9 @@ impl CryptoRng {
         }
         let mut seed_arr = [0u8; 32];
         seed_arr.copy_from_slice(seed);
-        Ok(CryptoRng {
-            rng: QuantumRng::from_seed(&seed_arr, 256.0),
-        })
+        QuantumRng::from_seed(&seed_arr, 256.0)
+            .map(|rng| CryptoRng { rng })
+            .map_err(|e| JsError::new(&format!("Failed to create RNG: {}", e)))
     }
 
     /// Generate random bytes.
@@ -477,7 +477,8 @@ impl SymmetricCrypto {
 
         let mut seed_arr = [0u8; 32];
         seed_arr.copy_from_slice(seed);
-        let rng = QuantumRng::from_seed(&seed_arr, 256.0);
+        let rng = QuantumRng::from_seed(&seed_arr, 256.0)
+            .map_err(|e| JsError::new(&format!("Failed to create RNG: {}", e)))?;
 
         Ok(SymmetricCrypto { key, rng })
     }
@@ -493,17 +494,29 @@ impl SymmetricCrypto {
     /// Encrypt data using AES-256-GCM.
     #[wasm_bindgen(js_name = encryptAesGcm)]
     pub fn encrypt_aes_gcm(&mut self, plaintext: &[u8]) -> Result<EncryptedPayload, JsError> {
-        crypto::encrypt(&self.key, plaintext, None, &mut self.rng, SymmetricAlgorithm::Aes256Gcm)
-            .map(|data| EncryptedPayload { data })
-            .map_err(|e| JsError::new(&format!("Encryption failed: {}", e)))
+        crypto::encrypt(
+            &self.key,
+            plaintext,
+            None,
+            &mut self.rng,
+            SymmetricAlgorithm::Aes256Gcm,
+        )
+        .map(|data| EncryptedPayload { data })
+        .map_err(|e| JsError::new(&format!("Encryption failed: {}", e)))
     }
 
     /// Encrypt data using ChaCha20-Poly1305.
     #[wasm_bindgen(js_name = encryptChaCha20)]
     pub fn encrypt_chacha20(&mut self, plaintext: &[u8]) -> Result<EncryptedPayload, JsError> {
-        crypto::encrypt(&self.key, plaintext, None, &mut self.rng, SymmetricAlgorithm::ChaCha20Poly1305)
-            .map(|data| EncryptedPayload { data })
-            .map_err(|e| JsError::new(&format!("Encryption failed: {}", e)))
+        crypto::encrypt(
+            &self.key,
+            plaintext,
+            None,
+            &mut self.rng,
+            SymmetricAlgorithm::ChaCha20Poly1305,
+        )
+        .map(|data| EncryptedPayload { data })
+        .map_err(|e| JsError::new(&format!("Encryption failed: {}", e)))
     }
 
     /// Encrypt data with additional authenticated data (AAD).
@@ -517,7 +530,11 @@ impl SymmetricCrypto {
         let algo = match algorithm {
             "aes-256-gcm" | "aes" | "AES" => SymmetricAlgorithm::Aes256Gcm,
             "chacha20-poly1305" | "chacha20" | "ChaCha20" => SymmetricAlgorithm::ChaCha20Poly1305,
-            _ => return Err(JsError::new("Unknown algorithm. Use 'aes-256-gcm' or 'chacha20-poly1305'")),
+            _ => {
+                return Err(JsError::new(
+                    "Unknown algorithm. Use 'aes-256-gcm' or 'chacha20-poly1305'",
+                ))
+            }
         };
 
         crypto::encrypt(&self.key, plaintext, Some(aad), &mut self.rng, algo)
@@ -534,7 +551,11 @@ impl SymmetricCrypto {
 
     /// Decrypt data with additional authenticated data (AAD).
     #[wasm_bindgen(js_name = decryptWithAad)]
-    pub fn decrypt_with_aad(&self, encrypted: &EncryptedPayload, aad: &[u8]) -> Result<Vec<u8>, JsError> {
+    pub fn decrypt_with_aad(
+        &self,
+        encrypted: &EncryptedPayload,
+        aad: &[u8],
+    ) -> Result<Vec<u8>, JsError> {
         crypto::decrypt(&self.key, &encrypted.data, Some(aad))
             .map_err(|e| JsError::new(&format!("Decryption failed: {}", e)))
     }
@@ -566,9 +587,9 @@ pub fn sha256(data: &[u8]) -> Vec<u8> {
 // Quantum Fortress WASM Bindings
 // ============================================================================
 
+use crate::crypto::argon2::{argon2_hash, Argon2Params};
+use crate::crypto::balloon::{balloon_hash, BalloonParams};
 use crate::crypto::fortress::FortressLevel;
-use crate::crypto::argon2::{Argon2Params, argon2_hash};
-use crate::crypto::balloon::{BalloonParams, balloon_hash};
 use crate::crypto::timelock::hash_chain_lock;
 
 /// Quantum Fortress - maximum cryptographic hardening
@@ -691,7 +712,12 @@ impl Fortress {
 
     /// Verify a password against a hash
     #[wasm_bindgen(js_name = verifyPassword)]
-    pub fn verify_password(&self, password: &str, salt: &str, expected_hash: &str) -> Result<bool, JsError> {
+    pub fn verify_password(
+        &self,
+        password: &str,
+        salt: &str,
+        expected_hash: &str,
+    ) -> Result<bool, JsError> {
         let computed = self.hash_password(password, salt)?;
         Ok(constant_time_compare(&computed, expected_hash))
     }
