@@ -376,7 +376,7 @@ impl CryptoRng {
         }
         let mut seed_arr = [0u8; 32];
         seed_arr.copy_from_slice(seed);
-        QuantumRng::from_seed(&seed_arr, 256.0)
+        QuantumRng::from_seed(&seed_arr, 256)
             .map(|rng| CryptoRng { rng })
             .map_err(|e| JsError::new(&format!("Failed to create RNG: {}", e)))
     }
@@ -392,7 +392,7 @@ impl CryptoRng {
     /// Get the entropy bits used to seed this RNG.
     #[wasm_bindgen(getter, js_name = entropyBits)]
     pub fn entropy_bits(&self) -> f64 {
-        self.rng.entropy_bits()
+        self.rng.entropy_bits() as f64
     }
 }
 
@@ -477,7 +477,7 @@ impl SymmetricCrypto {
 
         let mut seed_arr = [0u8; 32];
         seed_arr.copy_from_slice(seed);
-        let rng = QuantumRng::from_seed(&seed_arr, 256.0)
+        let rng = QuantumRng::from_seed(&seed_arr, 256)
             .map_err(|e| JsError::new(&format!("Failed to create RNG: {}", e)))?;
 
         Ok(SymmetricCrypto { key, rng })

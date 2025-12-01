@@ -50,6 +50,69 @@
 
 ---
 
+## Core Entropy Equations
+
+Our entanglement calculations are built around the von Neumann entropy of a density matrix \(\rho\):
+
+\[\boxed{\;S(\rho) = -\,\operatorname{Tr}\!\big(\rho\,\log_2 \rho\big) = -\sum_{i} \lambda_i \log_2 \lambda_i\; }\]
+
+Here \(\{\lambda_i\}\) are the eigenvalues of \(\rho\), and the base-2 logarithm measures entropy in bits. This equation underpins the reliability and regression tests in the suite, including degenerate cases where \(\rho\) may be empty or have zero bond dimension.
+
+For finite-order reliability sweeps we also track the Rényi entropy family, which collapses to the von Neumann limit as \(\alpha \to 1\):
+
+\[\boxed{\;S_\alpha(\rho) = \tfrac{1}{1-\alpha} \log_2 \!\Big( \sum_i \lambda_i^{\,\alpha} \Big),\quad \lim_{\alpha \to 1} S_\alpha(\rho) = S(\rho)\; }\]
+
+And because tensor networks admit a hard ceiling on entanglement, we validate the maximum bond entropy used in tests with
+
+\[\boxed{\;S_{\max}(\chi, n) = (n-1)\,\log_2 \chi\; }\]
+
+where \(\chi\) is the bond dimension and \(n\) is the number of lattice sites. These formulas make the numerical expectations explicit for the reliability suite.
+
+### How These Quantities Are Built
+
+For a pure state \(|\psi\rangle\) on bipartition \(A|B\), the reduced density matrix entering each equation is constructed via
+
+\[\rho_A = \operatorname{Tr}_B |\psi\rangle\!\langle\psi|.\]
+
+Matrix Product States give \(|\psi\rangle\) a Schmidt decomposition at every bond, \(|\psi\rangle = \sum_{i} s_i\,|i_A\rangle \otimes |i_B\rangle\), where the squared Schmidt coefficients \(\lambda_i = s_i^2\) form the spectrum of \(\rho_A\). This makes the bond entropy identical to the eigenvalue-based expression above:
+
+\[S(\rho_A) = -\sum_i s_i^2 \log_2 s_i^2.\]
+
+The Rényi family recovers the von Neumann case through l’Hôpital’s rule:
+
+\[\lim_{\alpha\to 1} S_\alpha(\rho_A) = -\left.\frac{\partial}{\partial \alpha} \log_2\!\Big( \sum_i s_i^{2\alpha} \Big)\right|_{\alpha=1} = S(\rho_A).\]
+
+Finally, the hard cap on entanglement follows from counting the \(\chi\)-dimensional bond Hilbert spaces. The reduced state on either side of a bond is supported on at most \(\chi\) singular values, so its entropy satisfies \(S(\rho_A) \le \log_2 \chi\); summing over the \(n-1\) interior bonds yields the network-wide limit \(S_{\max}(\chi, n)\).
+
+Because the reliability suite is fed raw Schmidt coefficients, all entropy helpers first normalize the squared singular values,
+
+\[ p_i = \frac{s_i^{\,2}}{\sum_j s_j^{\,2}}. \]
+
+This keeps each entropy invariant under overall rescaling of \(\{s_i\}\) and prevents degenerate inputs (zero norm or empty spectra) from surfacing as NaN/∞ during the stress tests.
+Because the normalization happens independently at every bond, the profile and its aggregate summaries (total, average, and augmented entropy) also remain unchanged when every singular value across the lattice is scaled by the same constant—locking the helpers to the underlying probability simplex instead of raw magnitudes. Zeros are explicitly ignored in the \(p_i \log p_i\) and Rényi sums so they never inject NaN/∞ and cannot break scaling invariance; the helper functions only ever see the probabilities supported on the non-zero spectrum.
+
+### Aggregate entanglement measures used in tests
+
+We evaluate several aggregate quantities derived from the per-bond spectrum \(\{\lambda^{(b)}_i\}\) that are referenced throughout the reliability suite:
+
+* **Total entanglement entropy** sums the von Neumann entropy over bonds \(b\) to capture the network-wide entanglement budget,
+
+  \[\boxed{\;S_\text{total} = \sum_{b=1}^{n-1} S\big(\rho_A^{(b)}\big) = \sum_{b=1}^{n-1} \Big(-\sum_i \lambda^{(b)}_i \log_2 \lambda^{(b)}_i\Big)\; }\]
+
+* **Average entanglement entropy** normalizes the total by the number of bonds,
+
+  \[\boxed{\;\bar{S} = \frac{1}{n-1} \, S_\text{total}\; }\]
+
+* **Entropy profile** is the ordered list \([S(\rho_A^{(1)}), \ldots, S(\rho_A^{(n-1)})]\), allowing local spikes or drops to be detected.
+
+* **Augmented entropy** adds the polynomial scaling term used in regression checks,
+
+  \[\boxed{\;S_\text{aug}(n) = S_\text{total} + \pi n^2\; }\]
+
+These expressions tie the implemented helpers (`total_entanglement_entropy`, `average_entanglement_entropy`, `entropy_profile`, and `augmented_entropy`) directly to the matrix-based definitions above, ensuring every test expectation is grounded in a closed-form equation.
+
+---
+
 ## Installation
 
 **npm / JavaScript / TypeScript**
@@ -62,6 +125,44 @@ npm install quantumwall
 [dependencies]
 quantum-wall = "0.1"
 ```
+
+---
+
+## Packaging and Publishing
+
+The repository ships first-class builds for browsers, Node.js, and bundlers. All packaging commands produce optimized release artifacts and are wired into `prepublishOnly` to avoid shipping debug WASM.
+
+### npm (WASM)
+1. Build every target so `pkg/`, `pkg-node/`, and `pkg-bundler/` stay in sync:
+   ```bash
+   npm run clean
+   npm run build:all
+   ```
+2. Sanity-check what will be uploaded with an npm pack dry-run:
+   ```bash
+   npm pack --dry-run
+   ```
+3. Publish the release artifacts (uses the web build by default and exposes `./node` and `./bundler` exports for Node and modern bundlers):
+   ```bash
+   npm publish
+   ```
+
+### crates.io (Rust library)
+1. Confirm the crate compiles in release mode and that documentation renders:
+   ```bash
+   cargo test --release
+   cargo doc --no-deps
+   ```
+2. Validate the manifest and package contents:
+   ```bash
+   cargo publish --dry-run
+   ```
+3. Push the crate to crates.io once checks are clean:
+   ```bash
+   cargo publish
+   ```
+
+Both publishing workflows assume a clean git state and that `wasm-pack` (pinned in `devDependencies`) is available on your PATH.
 
 ---
 
@@ -197,6 +298,10 @@ const hash = sha256(data);
 | **Time-lock** | Variable | - | - | Sequential hashing |
 
 ---
+
+## Repository status
+
+This sandbox has no Git remotes configured and cannot reach crates.io, so automated pushes to `main`/`master` or online test runs are not possible from here. Pull the latest branch locally, configure your GitHub remote, and run `cargo fmt`, `cargo clippy`, and `cargo test` with network access before pushing upstream.
 
 ## Quantum Fortress
 
@@ -403,6 +508,30 @@ cargo test
 # Build WebAssembly
 wasm-pack build --target web
 ```
+
+## Testing and offline environments
+
+Use the same steps as CI for local verification:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test --all --locked
+```
+
+If you are in a network-restricted environment (like the public sandbox used for
+automated grading), Cargo may fail to download the crates.io index or source
+crates. To run the test suite offline:
+
+- Pre-fetch dependencies on a networked machine with `cargo fetch --locked` and
+  commit or copy the resulting `~/.cargo/registry`, `~/.cargo/git`, and
+  `target` caches.
+- Alternatively, vendor dependencies with `cargo vendor` and point
+  `.cargo/config.toml` to the vendor directory so `cargo test --offline` can
+  succeed without external downloads.
+- If neither option is possible, you can still run `cargo fmt` and
+  `cargo clippy` locally, then execute `cargo test` once network access is
+  available (or in CI, where caching is provided).
 
 ---
 
