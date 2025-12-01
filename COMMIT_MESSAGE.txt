@@ -51,9 +51,9 @@ Also resolves edition2024 dependency conflict that was preventing builds.
    - Basic AES-GCM test vector
 
 ### Documentation
-- Created EXTENDED_SECURITY_STATUS.md - Progress tracking (284 lines)
-- Created SESSION_SUMMARY.md - Comprehensive session report (430 lines)
-- Created tests/extended_security.rs - Test suite (430 lines)
+- Created EXTENDED_SECURITY_STATUS.md - Progress tracking (283 lines)
+- Created SESSION_SUMMARY.md - Comprehensive session report (342 lines)
+- Created tests/extended_security.rs - Test suite (417 lines)
 
 ## Test Results
 
@@ -75,9 +75,9 @@ Modified:
 - Cargo.toml (commented out PQC dependencies)
 
 Added:
-- tests/extended_security.rs (430 lines)
-- EXTENDED_SECURITY_STATUS.md (284 lines)
-- SESSION_SUMMARY.md (430 lines)
+- tests/extended_security.rs (417 lines)
+- EXTENDED_SECURITY_STATUS.md (283 lines)
+- SESSION_SUMMARY.md (342 lines)
 - COMMIT_MESSAGE.txt (this file)
 
 ## Progress
