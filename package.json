@@ -5,17 +5,27 @@
   "main": "pkg/quantum_wall.js",
   "module": "pkg/quantum_wall.js",
   "types": "pkg/quantum_wall.d.ts",
+  "exports": {
+    ".": {
+      "import": "./pkg/quantum_wall.js",
+      "require": "./pkg-node/quantum_wall.js"
+    },
+    "./web": "./pkg/quantum_wall.js",
+    "./node": "./pkg-node/quantum_wall.js",
+    "./bundler": "./pkg-bundler/quantum_wall.js"
+  },
   "sideEffects": [
     "./pkg/quantum_wall.js"
   ],
   "scripts": {
-    "build": "wasm-pack build --target web --out-dir pkg",
-    "build:node": "wasm-pack build --target nodejs --out-dir pkg-node",
-    "build:bundler": "wasm-pack build --target bundler --out-dir pkg-bundler",
+    "build": "wasm-pack build --release --target web --out-dir pkg",
+    "build:node": "wasm-pack build --release --target nodejs --out-dir pkg-node",
+    "build:bundler": "wasm-pack build --release --target bundler --out-dir pkg-bundler",
+    "build:all": "npm run build && npm run build:node && npm run build:bundler",
     "test": "cargo test",
     "test:wasm": "wasm-pack test --node",
     "clean": "rm -rf pkg pkg-node pkg-bundler target",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run clean && npm run build:all"
   },
   "repository": {
     "type": "git",
@@ -40,11 +50,15 @@
   "homepage": "https://github.com/Ununp3ntium115/QuantumAgainstTheWall#readme",
   "files": [
     "pkg/**/*",
+    "pkg-node/**/*",
+    "pkg-bundler/**/*",
     "README.md",
     "LICENSE"
   ],
   "engines": {
     "node": ">=16.0.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "wasm-pack": "^0.13.1"
+  }
 }
