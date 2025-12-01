@@ -30,7 +30,7 @@ pub enum SymmetricAlgorithm {
     ChaCha20Poly1305 = 1,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct NonceState {
     counter: u64,
     seen: HashSet<[u8; NONCE_LEN]>,

@@ -246,12 +246,12 @@ fn initial_hash(password: &[u8], salt: &[u8], params: &Argon2Params) -> Vec<u8> 
 /// Variable-length hash using BLAKE2b per RFC 9106
 fn variable_hash(input: &[u8], out_len: usize) -> Vec<u8> {
     use blake2::digest::{Update, VariableOutput};
-    use blake2::VarBlake2b;
-    let mut hasher = VarBlake2b::new(out_len).expect("invalid blake2 length");
+    use blake2::Blake2bVar;
+    let mut hasher = Blake2bVar::new(out_len).expect("invalid blake2 length");
     hasher.update(&(out_len as u32).to_le_bytes());
     hasher.update(input);
     let mut out = vec![0u8; out_len];
-    hasher.finalize_variable(|res| out.copy_from_slice(res));
+    hasher.finalize_variable(&mut out).expect("buffer size mismatch");
     out
 }
 
