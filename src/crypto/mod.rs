@@ -6,6 +6,8 @@
 //! - **Key exchange**: Post-quantum key encapsulation for data in transit
 //! - **Key derivation**: HKDF for deriving keys from shared secrets
 //! - **Memory-hard functions**: Argon2id and Balloon hashing
+//! - **Bandwidth-hard functions**: Memory bandwidth exploitation for ASIC resistance
+//! - **Multi-hash**: Diversified hash functions for cryptanalysis resistance
 //! - **Time-lock puzzles**: Sequential work that can't be parallelized
 //! - **Quantum Fortress**: Combined hardening for maximum security
 //!
@@ -13,7 +15,7 @@
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────┐
-//! │                    QuantumWall Crypto                            │
+//! │                    QuantumWall Crypto (Enhanced)                 │
 //! ├─────────────────────────────────────────────────────────────────┤
 //! │  Quantum Entropy (MPS)  →  CSPRNG Seed  →  Key Generation       │
 //! ├─────────────────────────────────────────────────────────────────┤
@@ -22,7 +24,9 @@
 //! │  │  At Rest     │    │  In Transit  │    │  Hardening   │      │
 //! │  │  AES-256-GCM │    │  ML-KEM      │    │  Argon2id    │      │
 //! │  │  ChaCha20    │    │  X25519      │    │  Balloon     │      │
-//! │  └──────────────┘    └──────────────┘    │  Time-lock   │      │
+//! │  └──────────────┘    └──────────────┘    │  Bandwidth   │      │
+//! │                                          │  Multi-Hash  │      │
+//! │                                          │  Time-lock   │      │
 //! │                                          └──────────────┘      │
 //! └─────────────────────────────────────────────────────────────────┘
 //! ```
@@ -35,6 +39,8 @@ pub mod kdf;
 // Hardening modules for quantum resistance
 pub mod argon2;
 pub mod balloon;
+pub mod bandwidth;    // NEW: Bandwidth-hard functions
+pub mod multihash;    // NEW: Multi-hash support
 pub mod timelock;
 pub mod fortress;
 
@@ -47,6 +53,8 @@ pub use kdf::{derive_key, DerivedKey};
 // Hardening re-exports
 pub use argon2::{Argon2Params, Argon2Key, argon2_hash};
 pub use balloon::{BalloonParams, BalloonKey, balloon_hash};
+pub use bandwidth::{BandwidthParams, BandwidthKey, bandwidth_hard_hash};  // NEW
+pub use multihash::{MultiHashMode, multi_hash, multi_hash_kdf, MultiHashKey};  // NEW
 pub use timelock::{TimeLockParams, TimeLockPuzzle, hash_chain_lock};
 pub use fortress::{QuantumFortress, FortressConfig, FortressLevel, FortressData, FortressKey};
 
