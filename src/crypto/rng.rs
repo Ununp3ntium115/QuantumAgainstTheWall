@@ -19,11 +19,13 @@ pub struct QuantumRng {
     buffer: [u8; 64],
     /// Position in buffer
     position: usize,
-    /// Entropy source info
-    entropy_bits: f64,
+    /// Entropy source info (in bits, as integer to avoid f64 vulnerabilities)
+    entropy_bits: u32,
+    /// Block counter for tracking usage and preventing rollover
+    block_counter: u64,
 }
 
-const MIN_ENTROPY_BITS: f64 = 128.0;
+const MIN_ENTROPY_BITS: u32 = 128;
 
 impl QuantumRng {
     /// Create a new quantum RNG from an MPS state.
@@ -37,18 +39,19 @@ impl QuantumRng {
     /// A new QuantumRng instance
     pub fn from_mps(mps: &MPS) -> CryptoResult<Self> {
         let entropy = total_entanglement_entropy(mps);
-        if entropy < MIN_ENTROPY_BITS {
+        let entropy_bits = entropy.floor() as u32; // Convert to integer bits
+        if entropy_bits < MIN_ENTROPY_BITS {
             return Err(CryptoError::InsufficientEntropy);
         }
 
         // Derive seed from MPS singular values
         let seed = Self::derive_seed_from_mps(mps);
 
-        Self::from_seed(&seed, entropy)
+        Self::from_seed(&seed, entropy_bits)
     }
 
     /// Create from a 32-byte seed directly.
-    pub fn from_seed(seed: &[u8; 32], entropy_bits: f64) -> CryptoResult<Self> {
+    pub fn from_seed(seed: &[u8; 32], entropy_bits: u32) -> CryptoResult<Self> {
         if entropy_bits < MIN_ENTROPY_BITS {
             return Err(CryptoError::InsufficientEntropy);
         }
@@ -74,8 +77,9 @@ impl QuantumRng {
         state[12] = 0;
         state[13] = 0;
 
-        // Nonce (derived from entropy value)
-        let nonce_bytes = (entropy_bits.to_bits() as u64).to_le_bytes();
+        // Nonce (derived from entropy bits - use as u64 for domain separation)
+        let nonce_value = entropy_bits as u64;
+        let nonce_bytes = nonce_value.to_le_bytes();
         state[14] = u32::from_le_bytes([
             nonce_bytes[0],
             nonce_bytes[1],
@@ -94,6 +98,7 @@ impl QuantumRng {
             buffer: [0u8; 64],
             position: 64, // Force refill on first use
             entropy_bits,
+            block_counter: 0,
         };
 
         rng.refill_buffer();
@@ -108,7 +113,7 @@ impl QuantumRng {
         let mut seed = [0u8; 32];
         getrandom(&mut seed).map_err(|_| CryptoError::InsufficientEntropy)?;
         // System randomness provides full 256 bits of entropy
-        Self::from_seed(&seed, 256.0)
+        Self::from_seed(&seed, 256)
     }
 
     /// Derive a 32-byte seed from MPS singular values.
@@ -191,9 +196,14 @@ impl QuantumRng {
         Ok(())
     }
 
-    /// Get the entropy level of this RNG.
-    pub fn entropy_bits(&self) -> f64 {
+    /// Get the entropy level of this RNG in bits.
+    pub fn entropy_bits(&self) -> u32 {
         self.entropy_bits
+    }
+
+    /// Get the current block counter (for monitoring usage).
+    pub fn block_counter(&self) -> u64 {
+        self.block_counter
     }
 
     /// ChaCha20 quarter round
@@ -253,6 +263,9 @@ impl QuantumRng {
         if self.state[12] == 0 {
             self.state[13] = self.state[13].wrapping_add(1);
         }
+
+        // Track total blocks generated (for Item 19 - counter rollover tracking)
+        self.block_counter = self.block_counter.saturating_add(1);
 
         self.position = 0;
     }
@@ -343,13 +356,16 @@ impl SimpleHasher {
 
 impl Drop for QuantumRng {
     fn drop(&mut self) {
+        // Zeroize all sensitive state
         for v in self.state.iter_mut() {
             *v = 0;
         }
         for b in self.buffer.iter_mut() {
             *b = 0;
         }
-        self.entropy_bits = 0.0;
+        self.entropy_bits = 0;
+        self.block_counter = 0;
+        self.position = 0;
     }
 }
 
@@ -360,7 +376,7 @@ mod tests {
     #[test]
     fn test_quantum_rng_from_seed() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
 
         let a = rng.next_u64();
         let b = rng.next_u64();
@@ -372,8 +388,8 @@ mod tests {
     #[test]
     fn test_quantum_rng_deterministic() {
         let seed = [0x42u8; 32];
-        let mut rng1 = QuantumRng::from_seed(&seed, 256.0).expect("rng");
-        let mut rng2 = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng1 = QuantumRng::from_seed(&seed, 256).expect("rng");
+        let mut rng2 = QuantumRng::from_seed(&seed, 256).expect("rng");
 
         // Same seed should produce same output
         assert_eq!(rng1.next_u64(), rng2.next_u64());
@@ -383,7 +399,7 @@ mod tests {
     #[test]
     fn test_quantum_rng_fill_bytes() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
 
         let mut buf1 = [0u8; 100];
         let mut buf2 = [0u8; 100];

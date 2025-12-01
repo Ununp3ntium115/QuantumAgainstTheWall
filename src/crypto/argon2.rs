@@ -186,14 +186,28 @@ pub fn argon2_hash(password: &[u8], salt: &[u8], params: &Argon2Params) -> Crypt
         let mut block0_input = h0.clone();
         block0_input.extend_from_slice(&0u32.to_le_bytes());
         block0_input.extend_from_slice(&lane.to_le_bytes());
-        let block0_hash = variable_hash(&block0_input, BLOCK_SIZE);
+        let mut block0_hash = variable_hash(&block0_input, BLOCK_SIZE);
         fill_block_from_bytes(memory.get_mut(lane, 0), &block0_hash);
+        // Zeroize sensitive intermediate buffers (Item 28)
+        for b in block0_input.iter_mut() {
+            *b = 0;
+        }
+        for b in block0_hash.iter_mut() {
+            *b = 0;
+        }
 
         let mut block1_input = h0.clone();
         block1_input.extend_from_slice(&1u32.to_le_bytes());
         block1_input.extend_from_slice(&lane.to_le_bytes());
-        let block1_hash = variable_hash(&block1_input, BLOCK_SIZE);
+        let mut block1_hash = variable_hash(&block1_input, BLOCK_SIZE);
         fill_block_from_bytes(memory.get_mut(lane, 1), &block1_hash);
+        // Zeroize sensitive intermediate buffers (Item 28)
+        for b in block1_input.iter_mut() {
+            *b = 0;
+        }
+        for b in block1_hash.iter_mut() {
+            *b = 0;
+        }
     }
 
     // Main iterations
@@ -212,11 +226,16 @@ pub fn argon2_hash(password: &[u8], salt: &[u8], params: &Argon2Params) -> Crypt
     }
 
     // Generate output
-    let final_bytes = block_to_bytes(&final_block);
+    let mut final_bytes = block_to_bytes(&final_block);
     let output = variable_hash(&final_bytes, params.output_len);
 
-    // Clean up
+    // Clean up (Item 28 - zeroize all intermediate buffers)
     memory.zeroize();
+    final_block.zeroize();
+    for b in final_bytes.iter_mut() {
+        *b = 0;
+    }
+    // Note: h0 will be cleaned up when it goes out of scope (contains password-derived data)
 
     Ok(output)
 }

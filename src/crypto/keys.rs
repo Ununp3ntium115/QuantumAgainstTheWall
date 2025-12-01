@@ -502,7 +502,7 @@ mod tests {
     #[test]
     fn test_secret_key_generation() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
         let key = SecretKey::generate(&mut rng);
         assert_eq!(key.as_bytes().len(), 32);
     }
@@ -511,7 +511,7 @@ mod tests {
     #[ignore = "X25519 temporarily disabled due to dependency conflicts - use ML-KEM instead"]
     fn test_x25519_key_exchange() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
 
         let alice = KeyPair::generate_x25519(&mut rng);
         let bob = KeyPair::generate_x25519(&mut rng);
@@ -525,7 +525,7 @@ mod tests {
     #[test]
     fn test_encryption_key_nonce() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
 
         let mut key = EncryptionKey::generate(&mut rng);
         let nonce1 = key.next_nonce(&mut rng);

@@ -269,7 +269,7 @@ mod tests {
     #[test]
     fn roundtrip_chacha_with_aad_and_version() {
         let seed = [0x11u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
         let key = SecretKey::generate(&mut rng);
         let aad = b"context:chat";
         let pt = b"hello quantum";
@@ -288,7 +288,7 @@ mod tests {
     #[test]
     fn replay_detection_blocks_duplicate_nonce() {
         let seed = [0x33u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
         let key = SecretKey::generate(&mut rng);
         let pt = b"replay";
         let encrypted = encrypt(&key, pt, None, &mut rng, SymmetricAlgorithm::Aes256Gcm).unwrap();
@@ -301,7 +301,7 @@ mod tests {
     #[test]
     fn tampered_algorithm_fails() {
         let seed = [0x55u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
         let key = SecretKey::generate(&mut rng);
         let pt = b"downgrade";
         let mut encrypted =
@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn serialization_roundtrip() {
         let seed = [0x42u8; 32];
-        let mut rng = QuantumRng::from_seed(&seed, 256.0).expect("rng");
+        let mut rng = QuantumRng::from_seed(&seed, 256).expect("rng");
         let key = SecretKey::generate(&mut rng);
         let pt = b"serialize";
         let encrypted = encrypt(
