@@ -526,8 +526,13 @@ mod tests {
         let key2 = SecretKey::generate(&mut rng);
         let pt = b"encrypted with key1";
 
-        let encrypted =
-            encrypt(&key1, pt, None, &mut rng, SymmetricAlgorithm::Aes256Gcm).expect("encrypt");
+        let encrypted = encrypt(
+            &key1,
+            pt,
+            None,
+            &mut rng,
+            SymmetricAlgorithm::Aes256Gcm,
+        ).expect("encrypt");
 
         // Decrypt with wrong key should fail
         let result = decrypt(&key2, &encrypted, None);
