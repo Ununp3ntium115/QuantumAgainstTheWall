@@ -10,7 +10,7 @@
 //! - AP: API misuse prevention (type safety, parameter validation, etc.)
 //! - KL: Key lifecycle (rotation, expiration, etc.)
 //! - SC: Side-channel resistance (timing, cache, etc.)
-//! - SS: State safety (cloning, serialization, etc.)
+//! - SS: Supply chain security (dependencies, unsafe code, etc.)
 //! - OP: Operational security (logging, error handling, etc.)
 //! - PL: Protocol-level (replay, downgrade, etc.)
 //! - CD: Cryptographic design (algorithm choice, parameters, etc.)
@@ -40,8 +40,7 @@ fn ca_001_gcm_nonce_exhaustion() {
     // the limit is enforced by checking the implementation
     
     // The limit is enforced in NonceState::next_nonce()
-    // which checks: if self.counter >= MAX_AES_GCM_MESSAGES
-    // where MAX_AES_GCM_MESSAGES = 1 << 32
+    // which checks against MAX_AES_GCM_MESSAGES (2^32)
     
     // Test that we can encrypt messages successfully
     let plaintext = b"Test message";
@@ -52,7 +51,7 @@ fn ca_001_gcm_nonce_exhaustion() {
     
     // The actual exhaustion test would require 2^32 encryptions,
     // which is impractical. The implementation enforces this limit
-    // in src/crypto/symmetric.rs lines 46-52.
+    // in src/crypto/symmetric.rs NonceState::next_nonce method.
     println!("✓ CA-001: GCM nonce limit enforcement verified");
 }
 
@@ -108,9 +107,7 @@ fn ca_003_related_key_resistance() {
 fn ca_004_kat_compliance() {
     // The implementation uses vetted crates (aes-gcm, chacha20poly1305)
     // which have been tested against NIST/RFC KATs
-    // Specific KATs are in src/crypto/symmetric.rs tests:
-    // - aes_gcm_matches_reference_vector
-    // - chacha20_poly1305_rfc8439_kat
+    // Specific KATs are in src/crypto/symmetric.rs::tests module
     
     println!("✓ CA-004: KAT compliance verified via library test vectors");
 }
@@ -175,9 +172,9 @@ fn ms_002_key_zeroization() {
         assert!(has_nonzero, "Key should have non-zero data");
     } // key is dropped here
     
-    // After drop, we can't safely access the memory (it's undefined behavior)
+    // After drop, the memory is inaccessible (undefined behavior to access)
     // The Drop implementation in SecretKey calls zeroize()
-    // This is verified by code inspection in src/crypto/keys.rs:42-45
+    // This is verified by code inspection in src/crypto/keys.rs Drop impl
     
     println!("✓ MS-002: Key zeroization verified by Drop implementation");
 }
@@ -350,9 +347,11 @@ fn rq_004_rng_usage_tracking() {
     
     // Check bytes generated tracking returns a valid value
     let bytes_gen = rng.bytes_generated();
-    // Bytes generated = block_counter * 64, so should be reasonable
-    assert!(bytes_gen == after_counter.saturating_mul(64), 
-            "Bytes generated should match block counter * 64");
+    // Bytes generated should equal block_counter * 64
+    // Allow for minor variance due to buffering
+    let expected_bytes = after_counter.saturating_mul(64);
+    assert_eq!(bytes_gen, expected_bytes, 
+               "Bytes generated should match block counter * 64");
     
     println!("✓ RQ-004: RNG usage tracking verified (counter: {} -> {}, bytes: {})", 
              initial_counter, after_counter, bytes_gen);
@@ -603,13 +602,14 @@ fn op_001_error_message_no_leakage() {
         assert!(error_msg.contains("Decryption") || error_msg.contains("Crypto"), 
                "Error should be a simple enum");
         
-        // Check that the full key bytes don't appear
-        let key_hex = key.as_bytes().iter()
-            .map(|b| format!("{:02x}", b))
-            .collect::<Vec<_>>()
-            .join("");
-        assert!(!error_msg.contains(&key_hex), 
-               "Error message should not contain complete key");
+        // Verify no key bytes appear in the error
+        // Check a few key bytes rather than the full key for efficiency
+        let key_sample = &key.as_bytes()[..8];
+        for &byte in key_sample {
+            let hex = format!("{:02x}", byte);
+            assert!(!error_msg.contains(&hex), 
+                   "Error message should not contain key bytes");
+        }
     }
     
     println!("✓ OP-001: Error message information leakage prevented");
@@ -793,10 +793,10 @@ fn ss_001_dependency_security() {
 /// Verifies that no unsafe code is used in crypto modules.
 #[test]
 fn ss_002_unsafe_code_audit() {
-    // The lib.rs has #![deny(unsafe_code)]
+    // src/lib.rs has #![deny(unsafe_code)]
     // This is verified at compile time
     // This test documents the policy
-    println!("✓ SS-002: Unsafe code denied via #![deny(unsafe_code)]");
+    println!("✓ SS-002: Unsafe code denied via #![deny(unsafe_code)] in src/lib.rs");
 }
 
 // ============================================================================
